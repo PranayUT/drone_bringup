@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    DJI waypoint mission runner.
+
+    Reads lat,lon,alt waypoints from a text file, uploads the mission to
+    the DJI SDK, starts it, and prints per-leg and total elapsed times.
+
+    Requires dji_sdk to be running (sdk.launch) before launching this node.
+
+    Usage:
+      roslaunch drone_bringup waypoint_runner.launch waypoints_file:=/path/to/waypoints.txt
+  -->
+
+  <!-- Required: path to waypoints file (lat,lon,alt per line) -->
+  <arg name="waypoints_file"/>
+
+  <!-- Cruise speed in m/s -->
+  <arg name="speed"         default="2.0"/>
+
+  <!-- Arrival detection radius in metres -->
+  <arg name="arrive_radius" default="1.0"/>
+
+  <node pkg="drone_bringup"
+        type="waypoint_runner.py"
+        name="waypoint_runner"
+        output="screen"
+        launch-prefix="bash -c 'sleep 10; exec &quot;$@&quot;' --"
+        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius)"/>
+</launch>

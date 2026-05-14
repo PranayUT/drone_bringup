@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    DJI waypoint mission runner — synchronized variant.
+
+    Requires dji_sdk to be running (sdk.launch) before this node starts the
+    real work, but the node itself just polls until telemetry + services are
+    live, so there's no fixed-sleep launch-prefix here (unlike
+    waypoint_runner.launch).
+
+    Usage:
+      roslaunch drone_bringup waypoint_runner_synchronized.launch \
+        waypoints_file:=/path/to/waypoints.txt
+  -->
+
+  <!-- Required: path to waypoints file ('lat, lon, alt' or 'lat, lon, alt, yaw_rad' per line) -->
+  <arg name="waypoints_file"/>
+
+  <!-- Cruise speed in m/s -->
+  <arg name="speed"         default="5.0"/>
+
+  <!-- Arrival detection radius in metres -->
+  <arg name="arrive_radius" default="1.0"/>
+
+  <node pkg="drone_bringup"
+        type="waypoint_runner_synchronized.py"
+        name="waypoint_runner_synchronized"
+        output="screen"
+        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius)"/>
+</launch>

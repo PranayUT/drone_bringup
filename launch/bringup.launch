@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- <arg name="width"  default="1920"/>
+  <arg name="height" default="1080"/>
+  <arg name="fps"    default="60"/>
+  <include file="$(find jetson_csi_cam)/jetson_csi_cam.launch">
+    <arg name="width" value="$(arg width)"/>
+    <arg name="height" value="$(arg height)"/>
+    <arg name="fps" value="$(arg fps)"/>
+  </include> --> 
+
+  <!-- DJI SDK (FC link) -->
+  <include file="$(find dji_sdk)/launch/sdk.launch"/>
+
+  <!-- Waypoint mission runner -->
+  <arg name="waypoints_file"/>
+  <arg name="speed"         default="5.0"/>
+  <arg name="arrive_radius" default="1.0"/>
+  <include file="$(find drone_bringup)/launch/waypoint_runner.launch">
+    <arg name="waypoints_file" value="$(arg waypoints_file)"/>
+    <arg name="speed"          value="$(arg speed)"/>
+    <arg name="arrive_radius"  value="$(arg arrive_radius)"/>
+  </include>
+</launch>

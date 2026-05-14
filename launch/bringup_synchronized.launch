@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Synchronized bringup. Mirrors bringup.launch but pulls in the
+    waypoint_runner_synchronized runner (which does its own poll-until-ready
+    on telemetry/services and explicit FC mission clearing).
+
+    Usage:
+      roslaunch drone_bringup bringup_synchronized.launch \
+        waypoints_file:=/path/to/waypoints.txt speed:=5.0 arrive_radius:=1.0
+  -->
+
+  <!-- DJI SDK (FC link) -->
+  <include file="$(find dji_sdk)/launch/sdk.launch"/>
+
+  <!-- Synchronized waypoint mission runner -->
+  <arg name="waypoints_file"/>
+  <arg name="speed"         default="5.0"/>
+  <arg name="arrive_radius" default="1.0"/>
+  <include file="$(find drone_bringup)/launch/waypoint_runner_synchronized.launch">
+    <arg name="waypoints_file" value="$(arg waypoints_file)"/>
+    <arg name="speed"          value="$(arg speed)"/>
+    <arg name="arrive_radius"  value="$(arg arrive_radius)"/>
+  </include>
+</launch>

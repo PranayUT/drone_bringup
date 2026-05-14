@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    GPS target -> DJI waypoint mission node configuration.
+
+    IMPORTANT (OSDK ROS 3.8):
+    Waypoint `altitude` is interpreted as meters above takeoff point.
+    This launch file makes that behavior explicit and consistent by default.
+  -->
+
+  <!-- Prefer DJI SDK GPS topic by default (NavSatFix) -->
+  <arg name="current_fix_topic" default="/dji_sdk/gps_position"/>
+  <arg name="target_fix_topic" default="/gps_target"/>
+
+  <!-- Mission altitude: meters above takeoff point -->
+  <arg name="relative_alt_m" default="20.0"/>
+
+  <!-- Keep consistent: ignore NavSatFix.altitude unless publisher already converted it -->
+  <arg name="allow_target_altitude" default="false"/>
+
+  <arg name="auto_start" default="true"/>
+  <arg name="include_current_as_wp0" default="true"/>
+
+  <arg name="upload_service" default="/dji_sdk/mission_waypoint_upload"/>
+  <arg name="action_service" default="/dji_sdk/mission_waypoint_action"/>
+
+  <node pkg="drone_bringup"
+        type="gps_target_to_dji_waypoint_mission.py"
+        name="gps_target_to_dji_waypoint_mission"
+        output="screen">
+    <param name="current_fix_topic" value="$(arg current_fix_topic)"/>
+    <param name="target_fix_topic" value="$(arg target_fix_topic)"/>
+
+    <param name="relative_alt_m" value="$(arg relative_alt_m)"/>
+    <param name="allow_target_altitude" value="$(arg allow_target_altitude)"/>
+
+    <param name="auto_start" value="$(arg auto_start)"/>
+    <param name="include_current_as_wp0" value="$(arg include_current_as_wp0)"/>
+
+    <param name="upload_service" value="$(arg upload_service)"/>
+    <param name="action_service" value="$(arg action_service)"/>
+  </node>
+</launch>
