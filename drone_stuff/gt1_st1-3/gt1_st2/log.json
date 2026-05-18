@@ -1,0 +1,266 @@
+{
+  "run_timestamp": "2026-05-11_17-13-10",
+  "inputs": {
+    "aerial_depot": {
+      "name": "Aerial Depot",
+      "lat": 30.38853419613477,
+      "lon": -97.72883991012773
+    },
+    "ground_depot": {
+      "name": "Ground Depot",
+      "lat": 30.38854712908329,
+      "lon": -97.72888699115494
+    },
+    "task_nodes": [
+      {
+        "name": "Either",
+        "lat": 30.38844892316109,
+        "lon": -97.7289495690986,
+        "type": "either"
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38836878966738,
+        "lon": -97.72891202816622,
+        "type": "ground"
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38829255288783,
+        "lon": -97.7288814327971,
+        "type": "ground"
+      },
+      {
+        "name": "Either",
+        "lat": 30.38822507238957,
+        "lon": -97.72888800371966,
+        "type": "either"
+      },
+      {
+        "name": "Ground",
+        "lat": 30.3881325667238,
+        "lon": -97.72891777024662,
+        "type": "ground"
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38805788417088,
+        "lon": -97.72894651659537,
+        "type": "ground"
+      },
+      {
+        "name": "Both",
+        "lat": 30.38840973970319,
+        "lon": -97.72898094572642,
+        "type": "both"
+      },
+      {
+        "name": "Both",
+        "lat": 30.38829372169227,
+        "lon": -97.72891778216817,
+        "type": "both"
+      },
+      {
+        "name": "Both",
+        "lat": 30.38819835851541,
+        "lon": -97.7289292252874,
+        "type": "both"
+      }
+    ],
+    "all_locations_expanded": [
+      {
+        "location_index": 0,
+        "name": "Aerial Depot",
+        "lat": 30.38853419613477,
+        "lon": -97.72883991012773,
+        "type": null,
+        "allowed_vehicles": null
+      },
+      {
+        "location_index": 1,
+        "name": "Ground Depot",
+        "lat": 30.38854712908329,
+        "lon": -97.72888699115494,
+        "type": null,
+        "allowed_vehicles": null
+      },
+      {
+        "location_index": 2,
+        "name": "Either",
+        "lat": 30.38844892316109,
+        "lon": -97.7289495690986,
+        "type": "either",
+        "allowed_vehicles": null
+      },
+      {
+        "location_index": 3,
+        "name": "Ground",
+        "lat": 30.38836878966738,
+        "lon": -97.72891202816622,
+        "type": "ground",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 4,
+        "name": "Ground",
+        "lat": 30.38829255288783,
+        "lon": -97.7288814327971,
+        "type": "ground",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 5,
+        "name": "Either",
+        "lat": 30.38822507238957,
+        "lon": -97.72888800371966,
+        "type": "either",
+        "allowed_vehicles": null
+      },
+      {
+        "location_index": 6,
+        "name": "Ground",
+        "lat": 30.3881325667238,
+        "lon": -97.72891777024662,
+        "type": "ground",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 7,
+        "name": "Ground",
+        "lat": 30.38805788417088,
+        "lon": -97.72894651659537,
+        "type": "ground",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 8,
+        "name": "Both_aerial",
+        "lat": 30.38840973970319,
+        "lon": -97.72898094572642,
+        "type": "both",
+        "allowed_vehicles": [
+          0
+        ]
+      },
+      {
+        "location_index": 9,
+        "name": "Both_ground",
+        "lat": 30.38840973970319,
+        "lon": -97.72898094572642,
+        "type": "both",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 10,
+        "name": "Both_aerial",
+        "lat": 30.38829372169227,
+        "lon": -97.72891778216817,
+        "type": "both",
+        "allowed_vehicles": [
+          0
+        ]
+      },
+      {
+        "location_index": 11,
+        "name": "Both_ground",
+        "lat": 30.38829372169227,
+        "lon": -97.72891778216817,
+        "type": "both",
+        "allowed_vehicles": [
+          1
+        ]
+      },
+      {
+        "location_index": 12,
+        "name": "Both_aerial",
+        "lat": 30.38819835851541,
+        "lon": -97.7289292252874,
+        "type": "both",
+        "allowed_vehicles": [
+          0
+        ]
+      },
+      {
+        "location_index": 13,
+        "name": "Both_ground",
+        "lat": 30.38819835851541,
+        "lon": -97.7289292252874,
+        "type": "both",
+        "allowed_vehicles": [
+          1
+        ]
+      }
+    ],
+    "search_params": {
+      "first_solution_strategy": "PATH_CHEAPEST_ARC",
+      "local_search_metaheuristic": "GUIDED_LOCAL_SEARCH",
+      "time_limit_seconds": 10
+    },
+    "distance_callbacks": {
+      "aerial": "def aerial_distance_callback(from_routing_index, to_routing_index, manager, distance_matrix):\n    from_node = manager.IndexToNode(from_routing_index)\n    to_node   = manager.IndexToNode(to_routing_index)\n    return distance_matrix[from_node][to_node]\n",
+      "ground": "def ground_distance_callback(from_routing_index, to_routing_index, manager, distance_matrix):\n    from_node = manager.IndexToNode(from_routing_index)\n    to_node   = manager.IndexToNode(to_routing_index)\n    return 10 * distance_matrix[from_node][to_node]\n"
+    }
+  },
+  "outputs": {
+    "solver_status": 1,
+    "total_distance_m": 1404,
+    "routes": {
+      "aerial": {
+        "nodes_in_order": [
+          "Aerial Depot",
+          "Both_aerial",
+          "Both_aerial",
+          "Both_aerial",
+          "Aerial Depot"
+        ],
+        "location_indices": [
+          0,
+          10,
+          12,
+          8,
+          0
+        ],
+        "distance_m": 94
+      },
+      "ground": {
+        "nodes_in_order": [
+          "Ground Depot",
+          "Either",
+          "Both_ground",
+          "Both_ground",
+          "Both_ground",
+          "Ground",
+          "Ground",
+          "Either",
+          "Ground",
+          "Ground",
+          "Ground Depot"
+        ],
+        "location_indices": [
+          1,
+          2,
+          9,
+          11,
+          13,
+          7,
+          6,
+          5,
+          4,
+          3,
+          1
+        ],
+        "distance_m": 1310
+      }
+    }
+  }
+}

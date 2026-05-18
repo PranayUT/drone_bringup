@@ -1,0 +1,1 @@
+python3 bench_best_v1.py --source camera --weights best-v1.engine --task segment --preview --infer-ever 2c

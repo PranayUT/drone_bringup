@@ -1,0 +1,13 @@
+model=best-v1.engine task=segment source=image device=0 half=on delay=0.0s imgsz=640
+Loading /home/drone/best-v1.engine for TensorRT inference...
+[05/09/2026-17:51:01] [TRT] [I] [MemUsageChange] Init CUDA: CPU +186, GPU +0, now: CPU 305, GPU 3753 (MiB)
+[05/09/2026-17:51:02] [TRT] [I] Loaded engine size: 8 MiB
+[05/09/2026-17:51:21] [TRT] [I] [MemUsageChange] Init cuBLAS/cuBLASLt: CPU +261, GPU -176, now: CPU 610, GPU 3604 (MiB)
+[05/09/2026-17:51:24] [TRT] [I] [MemUsageChange] Init cuDNN: CPU +85, GPU +37, now: CPU 695, GPU 3641 (MiB)
+[05/09/2026-17:51:24] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in engine deserialization: CPU +0, GPU +5, now: CPU 0, GPU 5 (MiB)
+[05/09/2026-17:51:24] [TRT] [I] [MemUsageChange] Init cuBLAS/cuBLASLt: CPU +0, GPU +16, now: CPU 687, GPU 3657 (MiB)
+[05/09/2026-17:51:24] [TRT] [I] [MemUsageChange] Init cuDNN: CPU +0, GPU +0, now: CPU 687, GPU 3657 (MiB)
+[05/09/2026-17:51:27] [TRT] [I] [MemUsageChange] TensorRT-managed allocation in IExecutionContext creation: CPU +0, GPU +12, now: CPU 0, GPU 17 (MiB)
+iter=106 avg=18.97ms fps=52.71 p50=18.60 p90=20.12 p95=20.55 p99=24.31 total=2.0s
+
+Summary: iters=200 avg=18.79ms fps=53.23 p50=18.46 p90=19.84 p95=20.47 p99=23.80

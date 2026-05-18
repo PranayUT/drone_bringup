@@ -1,0 +1,8 @@
+# Square path around the example object area (20 m x 20 m, 10 m AGL).
+# Center is the midpoint of example_waypoints.txt; corners are NE -> SE -> SW -> NW -> NE.
+# Format: lat, lon, alt_above_takeoff_metres
+30.3140764, -97.7429881, 10
+30.3138968, -97.7429881, 10
+30.3138968, -97.7431962, 10
+30.3140764, -97.7431962, 10
+30.3140764, -97.7429881, 10

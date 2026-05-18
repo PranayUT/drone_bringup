@@ -26,5 +26,7 @@
         type="waypoint_runner_synchronized.py"
         name="waypoint_runner_synchronized"
         output="screen"
-        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius)"/>
+        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius)">
+    <env name="PYTHONUNBUFFERED" value="1"/>
+  </node>
 </launch>

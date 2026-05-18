@@ -1,0 +1,52 @@
+Jetson Xavier NX — YOLO best-v1 optimization notes (May 2026)
+============================================================
+
+Hardware / stack
+- Board: NVIDIA Jetson Xavier NX Developer Kit (tegra194)
+- JetPack / L4T: R35.1.x family; TensorRT 8.4.1.5 (JetPack meta, not pip tensorrt-cu11)
+- venv: ~/yolo-env — ultralytics 8.4.45, torch 2.1.0 Jetson wheel (often from ~/.local)
+- Model: YOLO26n-seg custom weights best-v1.pt; export used end2end=False for TRT 8.4 ONNX (Mod op)
+
+Performance (bench_best_v1.py, imgsz=640, static image bus.jpg)
+- PyTorch best-v1.pt (GPU, half): ~45.61 ms avg, ~21.9 FPS
+- TensorRT best-v1.engine (FP16, task=segment): ~18.79 ms avg, ~53.2 FPS (~2.4x faster)
+
+TensorRT export (one-time)
+- export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+- yolo export model=best-v1.pt format=engine half=True imgsz=640 end2end=False workspace=4
+- Pip failures for onnxruntime-gpu and tensorrt-cu11 on Jetson are expected; use JetPack TRT.
+
+TensorRT inference / bench (avoid libGLdispatch TLS error when loading .engine after torch)
+- export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+- Always use --task segment for this checkpoint when loading .engine
+
+Camera + preview (~1920x1080@60, same bench script, Ctrl+C summary lines)
+- PyTorch (best-v1.pt, no .engine): Summary iters=1146 avg=49.43ms fps=20.23 p50=48.17 p90=55.79 p95=58.46 p99=64.45 — htop python3 bench_best_v1.py CPU roughly 160–180% during run
+- TensorRT (.engine + --task segment + LD_PRELOAD): Summary iters=30380 avg=24.19ms fps=41.34 p50=23.64 p90=26.54 p95=28.03 p99=31.26 — htop CPU roughly 130–150% during run (e.g. ~141% on an earlier run; multi-threaded across cores)
+
+Camera + preview (tuned stack, May 2026 screenshots — anti-flash last_res.plot(img=), infer-every / lower pipeline load)
+- TensorRT .engine, live bench lines ~23.7ms avg → ~42 FPS (e.g. iter=1309 avg=23.71ms fps=42.18 p50=23.48 p90=25.21 p95=26.01 p99=29.17 total=46.5s)
+- Ctrl+C Summary: iters=790 avg=23.86ms fps=41.91 p50=23.54 p90=25.68 p95=26.62 p99=29.63 (GST_ARGUS cleanup after stop)
+- htop while running: python3 bench_best_v1.py ~93.4% on one process line — below 100% (under one full core in that view); RAM about 5.02 / 6.69 GiB in that grab; nvargus-daemon visible (CSI path). Contrast earlier 1080p60+all-frame infer runs at ~130–180% aggregate.
+- htop other grab: very low per-core % (~2.5–9%) — typical once bench exited or system mostly idle
+- YOLO Preview window OK (live floor + ball scene with overlay/conf ~0.54 on that frame). Timed loop still ~42 FPS — above a 30–35 cap if desired: lower --cam-fps or add small --delay
+
+Power / clocks
+- sudo nvpmodel -m 0 && sudo jetson_clocks per boot for max performance
+
+Flying: keep preview + comfortable resolution + solid detection
+- YOLO still resizes to --imgsz (default 640) internally; 1080p preview helps the pilot more than the detector. Prefer --cam-fps 30 or 35 (smooth enough to fly, less capture/encode load than 60). Pair with 1280x720 if you want more CPU headroom, or keep 1920x1080 with lower fps.
+- Keep TensorRT .engine + --task segment + LD_PRELOAD for inference.
+- bench_best_v1.py: --infer-every N (camera only) runs YOLO every N frames; preview redraws the last masks/boxes onto each new frame (no flashing). Detections still refresh only every N frames, so fast motion can lag slightly until the next infer.
+- Example: export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1 && python3 ~/bench_best_v1.py --source camera --weights ~/best-v1.engine --task segment --preview --cam-width 1280 --cam-height 720 --cam-fps 30 --imgsz 640 --infer-every 2
+
+start_mission.sh + YOLO / CSI camera
+- Default: script restarts nvargus-daemon then launches ROS bringup — any other nvarguscamerasrc client must be stopped first or it will break.
+- Order: run ./start_mission.sh first; after bringup is healthy, start bench/YOLO only if CSI is not already owned by ROS (jetson_csi_cam is currently commented out in bringup.launch — recheck before flying).
+- To avoid bouncing nvargus when you know the daemon is fine: SKIP_NVARGUS_RESTART=1 ./start_mission.sh …
+- Optional: NVARGUS_SETTLE_SEC=5 to wait longer after restart (default 3 in script).
+
+Files
+- ~/best-v1.pt, ~/best-v1.onnx, ~/best-v1.engine
+- ~/bench_best_v1.py (supports --task segment, --infer-every)
+- ~/start_mission.sh (SKIP_NVARGUS_RESTART, NVARGUS_SETTLE_SEC)

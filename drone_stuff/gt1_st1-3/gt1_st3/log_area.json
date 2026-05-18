@@ -1,0 +1,153 @@
+{
+  "inputs": {
+    "source_log": "/home/michal/Documents/01-Research/00-MultiviewRobustCP/synth-data-gen/02-Scripts/13-KML-to-GPS/runs/2026-05-11_17-19-11_gt1_st3/log.json",
+    "radius_m": 10.0,
+    "ground_depot": {
+      "name": "Ground Depot",
+      "lat": 30.38823058707296,
+      "lon": -97.72882935613092
+    },
+    "targets": [
+      {
+        "name": "Ground",
+        "lat": 30.3881325667238,
+        "lon": -97.72891777024662
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38805788417088,
+        "lon": -97.72894651659537
+      },
+      {
+        "name": "Both_ground",
+        "lat": 30.38819835851541,
+        "lon": -97.7289292252874
+      },
+      {
+        "name": "Both_ground",
+        "lat": 30.38829372169227,
+        "lon": -97.72891778216817
+      },
+      {
+        "name": "Both_ground",
+        "lat": 30.38840973970319,
+        "lon": -97.72898094572642
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38836878966738,
+        "lon": -97.72891202816622
+      },
+      {
+        "name": "Ground",
+        "lat": 30.38829255288783,
+        "lon": -97.7288814327971
+      }
+    ]
+  },
+  "outputs": {
+    "solver_status": 1,
+    "total_distance_m": 64,
+    "route": {
+      "nodes_in_order": [
+        {
+          "name": "Ground Depot",
+          "lat": 30.38823058707296,
+          "lon": -97.72882935613092
+        },
+        {
+          "name": "Both_ground_c7",
+          "lat": 30.388238927825913,
+          "lon": -97.72885426168526
+        },
+        {
+          "name": "Both_ground_c1",
+          "lat": 30.388253152404502,
+          "lon": -97.72886570480449
+        },
+        {
+          "name": "Both_ground_c6",
+          "lat": 30.3883322495573,
+          "lon": -97.72898094572642
+        },
+        {
+          "name": "Ground_c5",
+          "lat": 30.388313995843134,
+          "lon": -97.72897554864913
+        },
+        {
+          "name": "Ground_c5",
+          "lat": 30.388237759020846,
+          "lon": -97.72894495328
+        },
+        {
+          "name": "Ground_c2",
+          "lat": 30.388135374534382,
+          "lon": -97.72894651659536
+        },
+        {
+          "name": "Ground_c1",
+          "lat": 30.388187360649788,
+          "lon": -97.72885424976371
+        },
+        {
+          "name": "Ground Depot",
+          "lat": 30.38823058707296,
+          "lon": -97.72882935613092
+        }
+      ],
+      "distance_m": 64
+    },
+    "observation_vectors": [
+      {
+        "candidate": "Both_ground_c7",
+        "lat": 30.388238927825913,
+        "lon": -97.72885426168526,
+        "target": "Both_ground",
+        "yaw_rad": -2.356194490192345
+      },
+      {
+        "candidate": "Both_ground_c1",
+        "lat": 30.388253152404502,
+        "lon": -97.72886570480449,
+        "target": "Both_ground",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Both_ground_c6",
+        "lat": 30.3883322495573,
+        "lon": -97.72898094572642,
+        "target": "Both_ground",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Ground_c5",
+        "lat": 30.388313995843134,
+        "lon": -97.72897554864913,
+        "target": "Ground",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Ground_c5",
+        "lat": 30.388237759020846,
+        "lon": -97.72894495328,
+        "target": "Ground",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Ground_c2",
+        "lat": 30.388135374534382,
+        "lon": -97.72894651659536,
+        "target": "Ground",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Ground_c1",
+        "lat": 30.388187360649788,
+        "lon": -97.72885424976371,
+        "target": "Ground",
+        "yaw_rad": -0.7853981633974483
+      }
+    ]
+  }
+}

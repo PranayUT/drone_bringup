@@ -1,0 +1,32 @@
+# testing_yaw.txt -- yaw control test pattern
+#
+# 6 waypoints, each 10 m due north of the previous, altitude 10 m.
+# WP1 is at the gt1_st1 starting position with heading 0 deg (north). WP2 holds
+# the same heading while flying north (tests yaw hold during translation).
+# WP3..WP6 rotate 90 deg at each step: 0 -> 90 -> 180 -> 270 -> 360.
+#
+# NOTE on 360: DJI normalizes target_yaw to (-180, 180], so the FC stores
+# WP6 as 0 deg (same physical heading as WP1/WP2). 360 and 0 are the same
+# heading -- there is no way for a single waypoint to request a full revolution.
+#
+# Format (consumed by drone_bringup/scripts/waypoint_runner.py):
+#   lat, lon, alt_above_takeoff_metres, yaw_rad
+#
+# yaw_rad is in the runner's local frame (0 rad = south, +CCW), NOT DJI degrees.
+# To produce a desired DJI heading: yaw_rad = radians(180 - dji_deg)
+#
+# WP   step        Compass heading           yaw_rad
+# ---  ----------  ------------------------  ---------------------
+#  1   start         0 deg (north)            3.141592653589793   (pi)
+#  2   +10 m N       0 deg (north, hold)      3.141592653589793   (pi)
+#  3   +20 m N      90 deg (east)             1.5707963267948966  (pi/2)
+#  4   +30 m N     180 deg (south)            0.0
+#  5   +40 m N     270 deg = -90 deg (west)  -1.5707963267948966  (-pi/2)
+#  6   +50 m N     360 deg =   0 deg (north)  3.141592653589793   (pi)
+
+30.388198358515425, -97.728839393759, 10.0,  3.141592653589793
+30.388288358515425, -97.728839393759, 10.0,  3.141592653589793
+30.388378358515425, -97.728839393759, 10.0,  1.5707963267948966
+30.388468358515425, -97.728839393759, 10.0,  0.0
+30.388558358515425, -97.728839393759, 10.0, -1.5707963267948966
+30.388648358515425, -97.728839393759, 10.0,  3.141592653589793

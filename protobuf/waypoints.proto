@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package telemetry;
+
+message Waypoint {
+  double lat = 1;
+  double lon = 2;
+  double alt = 3;
+}
+
+message WaypointList {
+  repeated Waypoint waypoints = 1;
+  uint64 timestamp_ns = 2;
+}

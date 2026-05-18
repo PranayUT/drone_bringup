@@ -1,0 +1,538 @@
+{
+  "inputs": {
+    "source_log": "/home/michal/Documents/01-Research/00-MultiviewRobustCP/synth-data-gen/02-Scripts/13-KML-to-GPS/runs/2026-05-11_17-19-11_gt1_st3/log.json",
+    "radius_m": 10.0,
+    "aerial_depot": {
+      "name": "Aerial Depot",
+      "lat": 30.38818198053756,
+      "lon": -97.72884983929792
+    },
+    "targets": [
+      {
+        "name": "Either",
+        "lat": 30.38822507238957,
+        "lon": -97.72888800371966
+      },
+      {
+        "name": "Both_aerial",
+        "lat": 30.38829372169227,
+        "lon": -97.72891778216817
+      },
+      {
+        "name": "Either",
+        "lat": 30.38844892316109,
+        "lon": -97.7289495690986
+      },
+      {
+        "name": "Both_aerial",
+        "lat": 30.38840973970319,
+        "lon": -97.72898094572642
+      },
+      {
+        "name": "Both_aerial",
+        "lat": 30.38819835851541,
+        "lon": -97.7289292252874
+      }
+    ]
+  },
+  "outputs": {
+    "total_distance_m": 360,
+    "route": {
+      "nodes_in_order": [
+        {
+          "name": "Aerial Depot",
+          "lat": 30.38818198053756,
+          "lon": -97.72884983929792
+        },
+        {
+          "name": "Either_c0",
+          "lat": 30.388225072389574,
+          "lon": -97.72879817219126
+        },
+        {
+          "name": "Either_c1",
+          "lat": 30.38827986626369,
+          "lon": -97.72882448323676
+        },
+        {
+          "name": "Either_c2",
+          "lat": 30.388302562620478,
+          "lon": -97.72888800371967
+        },
+        {
+          "name": "Either_c3",
+          "lat": 30.38827986626369,
+          "lon": -97.72895152420257
+        },
+        {
+          "name": "Either_c4",
+          "lat": 30.388225072389574,
+          "lon": -97.72897783524809
+        },
+        {
+          "name": "Either_c5",
+          "lat": 30.38817027848472,
+          "lon": -97.72895152420257
+        },
+        {
+          "name": "Either_c6",
+          "lat": 30.388147582097197,
+          "lon": -97.72888800371967
+        },
+        {
+          "name": "Either_c7",
+          "lat": 30.38817027848472,
+          "lon": -97.72882448323676
+        },
+        {
+          "name": "Both_aerial_c0",
+          "lat": 30.38829372169227,
+          "lon": -97.72882795063977
+        },
+        {
+          "name": "Both_aerial_c1",
+          "lat": 30.388348515527863,
+          "lon": -97.72885426168526
+        },
+        {
+          "name": "Both_aerial_c2",
+          "lat": 30.38837121186872,
+          "lon": -97.72891778216817
+        },
+        {
+          "name": "Both_aerial_c3",
+          "lat": 30.388348515527863,
+          "lon": -97.72898130265108
+        },
+        {
+          "name": "Both_aerial_c4",
+          "lat": 30.38829372169227,
+          "lon": -97.72900761369658
+        },
+        {
+          "name": "Both_aerial_c5",
+          "lat": 30.388238927825913,
+          "lon": -97.72898130265108
+        },
+        {
+          "name": "Both_aerial_c6",
+          "lat": 30.388216231454344,
+          "lon": -97.72891778216817
+        },
+        {
+          "name": "Both_aerial_c7",
+          "lat": 30.388238927825913,
+          "lon": -97.72885426168526
+        },
+        {
+          "name": "Either_c0",
+          "lat": 30.3884489231611,
+          "lon": -97.72885973757019
+        },
+        {
+          "name": "Either_c1",
+          "lat": 30.388503716909675,
+          "lon": -97.7288860486157
+        },
+        {
+          "name": "Either_c2",
+          "lat": 30.388526413214475,
+          "lon": -97.7289495690986
+        },
+        {
+          "name": "Either_c3",
+          "lat": 30.388503716909675,
+          "lon": -97.72901308958151
+        },
+        {
+          "name": "Either_c4",
+          "lat": 30.3884489231611,
+          "lon": -97.72903940062703
+        },
+        {
+          "name": "Either_c5",
+          "lat": 30.388394129381787,
+          "lon": -97.72901308958151
+        },
+        {
+          "name": "Either_c6",
+          "lat": 30.388371433046274,
+          "lon": -97.7289495690986
+        },
+        {
+          "name": "Either_c7",
+          "lat": 30.388394129381787,
+          "lon": -97.7288860486157
+        },
+        {
+          "name": "Both_aerial_c0",
+          "lat": 30.388409739703192,
+          "lon": -97.728891114198
+        },
+        {
+          "name": "Both_aerial_c1",
+          "lat": 30.388464533473726,
+          "lon": -97.72891742524352
+        },
+        {
+          "name": "Both_aerial_c2",
+          "lat": 30.388487229787636,
+          "lon": -97.72898094572642
+        },
+        {
+          "name": "Both_aerial_c3",
+          "lat": 30.388464533473726,
+          "lon": -97.72904446620933
+        },
+        {
+          "name": "Both_aerial_c4",
+          "lat": 30.388409739703192,
+          "lon": -97.72907077725485
+        },
+        {
+          "name": "Both_aerial_c5",
+          "lat": 30.388354945901924,
+          "lon": -97.72904446620933
+        },
+        {
+          "name": "Both_aerial_c6",
+          "lat": 30.3883322495573,
+          "lon": -97.72898094572642
+        },
+        {
+          "name": "Both_aerial_c7",
+          "lat": 30.388354945901924,
+          "lon": -97.72891742524352
+        },
+        {
+          "name": "Both_aerial_c0",
+          "lat": 30.388198358515425,
+          "lon": -97.728839393759
+        },
+        {
+          "name": "Both_aerial_c1",
+          "lat": 30.388253152404502,
+          "lon": -97.72886570480449
+        },
+        {
+          "name": "Both_aerial_c2",
+          "lat": 30.38827584876752,
+          "lon": -97.7289292252874
+        },
+        {
+          "name": "Both_aerial_c3",
+          "lat": 30.388253152404502,
+          "lon": -97.72899274577031
+        },
+        {
+          "name": "Both_aerial_c4",
+          "lat": 30.388198358515425,
+          "lon": -97.72901905681582
+        },
+        {
+          "name": "Both_aerial_c5",
+          "lat": 30.38814356459561,
+          "lon": -97.72899274577031
+        },
+        {
+          "name": "Both_aerial_c6",
+          "lat": 30.388120868201877,
+          "lon": -97.7289292252874
+        },
+        {
+          "name": "Both_aerial_c7",
+          "lat": 30.38814356459561,
+          "lon": -97.72886570480449
+        },
+        {
+          "name": "Aerial Depot",
+          "lat": 30.38818198053756,
+          "lon": -97.72884983929792
+        }
+      ],
+      "distance_m": 360
+    },
+    "observation_vectors": [
+      {
+        "candidate": "Either_c0",
+        "lat": 30.388225072389574,
+        "lon": -97.72879817219126,
+        "target": "Either",
+        "yaw_rad": -1.5707963267948966
+      },
+      {
+        "candidate": "Either_c1",
+        "lat": 30.38827986626369,
+        "lon": -97.72882448323676,
+        "target": "Either",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Either_c2",
+        "lat": 30.388302562620478,
+        "lon": -97.72888800371967,
+        "target": "Either",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Either_c3",
+        "lat": 30.38827986626369,
+        "lon": -97.72895152420257,
+        "target": "Either",
+        "yaw_rad": 0.7853981633974483
+      },
+      {
+        "candidate": "Either_c4",
+        "lat": 30.388225072389574,
+        "lon": -97.72897783524809,
+        "target": "Either",
+        "yaw_rad": 1.5707963267948966
+      },
+      {
+        "candidate": "Either_c5",
+        "lat": 30.38817027848472,
+        "lon": -97.72895152420257,
+        "target": "Either",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Either_c6",
+        "lat": 30.388147582097197,
+        "lon": -97.72888800371967,
+        "target": "Either",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Either_c7",
+        "lat": 30.38817027848472,
+        "lon": -97.72882448323676,
+        "target": "Either",
+        "yaw_rad": -2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c0",
+        "lat": 30.38829372169227,
+        "lon": -97.72882795063977,
+        "target": "Both_aerial",
+        "yaw_rad": -1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c1",
+        "lat": 30.388348515527863,
+        "lon": -97.72885426168526,
+        "target": "Both_aerial",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c2",
+        "lat": 30.38837121186872,
+        "lon": -97.72891778216817,
+        "target": "Both_aerial",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Both_aerial_c3",
+        "lat": 30.388348515527863,
+        "lon": -97.72898130265108,
+        "target": "Both_aerial",
+        "yaw_rad": 0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c4",
+        "lat": 30.38829372169227,
+        "lon": -97.72900761369658,
+        "target": "Both_aerial",
+        "yaw_rad": 1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c5",
+        "lat": 30.388238927825913,
+        "lon": -97.72898130265108,
+        "target": "Both_aerial",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c6",
+        "lat": 30.388216231454344,
+        "lon": -97.72891778216817,
+        "target": "Both_aerial",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Both_aerial_c7",
+        "lat": 30.388238927825913,
+        "lon": -97.72885426168526,
+        "target": "Both_aerial",
+        "yaw_rad": -2.356194490192345
+      },
+      {
+        "candidate": "Either_c0",
+        "lat": 30.3884489231611,
+        "lon": -97.72885973757019,
+        "target": "Either",
+        "yaw_rad": -1.5707963267948966
+      },
+      {
+        "candidate": "Either_c1",
+        "lat": 30.388503716909675,
+        "lon": -97.7288860486157,
+        "target": "Either",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Either_c2",
+        "lat": 30.388526413214475,
+        "lon": -97.7289495690986,
+        "target": "Either",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Either_c3",
+        "lat": 30.388503716909675,
+        "lon": -97.72901308958151,
+        "target": "Either",
+        "yaw_rad": 0.7853981633974483
+      },
+      {
+        "candidate": "Either_c4",
+        "lat": 30.3884489231611,
+        "lon": -97.72903940062703,
+        "target": "Either",
+        "yaw_rad": 1.5707963267948966
+      },
+      {
+        "candidate": "Either_c5",
+        "lat": 30.388394129381787,
+        "lon": -97.72901308958151,
+        "target": "Either",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Either_c6",
+        "lat": 30.388371433046274,
+        "lon": -97.7289495690986,
+        "target": "Either",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Either_c7",
+        "lat": 30.388394129381787,
+        "lon": -97.7288860486157,
+        "target": "Either",
+        "yaw_rad": -2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c0",
+        "lat": 30.388409739703192,
+        "lon": -97.728891114198,
+        "target": "Both_aerial",
+        "yaw_rad": -1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c1",
+        "lat": 30.388464533473726,
+        "lon": -97.72891742524352,
+        "target": "Both_aerial",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c2",
+        "lat": 30.388487229787636,
+        "lon": -97.72898094572642,
+        "target": "Both_aerial",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Both_aerial_c3",
+        "lat": 30.388464533473726,
+        "lon": -97.72904446620933,
+        "target": "Both_aerial",
+        "yaw_rad": 0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c4",
+        "lat": 30.388409739703192,
+        "lon": -97.72907077725485,
+        "target": "Both_aerial",
+        "yaw_rad": 1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c5",
+        "lat": 30.388354945901924,
+        "lon": -97.72904446620933,
+        "target": "Both_aerial",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c6",
+        "lat": 30.3883322495573,
+        "lon": -97.72898094572642,
+        "target": "Both_aerial",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Both_aerial_c7",
+        "lat": 30.388354945901924,
+        "lon": -97.72891742524352,
+        "target": "Both_aerial",
+        "yaw_rad": -2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c0",
+        "lat": 30.388198358515425,
+        "lon": -97.728839393759,
+        "target": "Both_aerial",
+        "yaw_rad": -1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c1",
+        "lat": 30.388253152404502,
+        "lon": -97.72886570480449,
+        "target": "Both_aerial",
+        "yaw_rad": -0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c2",
+        "lat": 30.38827584876752,
+        "lon": -97.7289292252874,
+        "target": "Both_aerial",
+        "yaw_rad": 0.0
+      },
+      {
+        "candidate": "Both_aerial_c3",
+        "lat": 30.388253152404502,
+        "lon": -97.72899274577031,
+        "target": "Both_aerial",
+        "yaw_rad": 0.7853981633974483
+      },
+      {
+        "candidate": "Both_aerial_c4",
+        "lat": 30.388198358515425,
+        "lon": -97.72901905681582,
+        "target": "Both_aerial",
+        "yaw_rad": 1.5707963267948966
+      },
+      {
+        "candidate": "Both_aerial_c5",
+        "lat": 30.38814356459561,
+        "lon": -97.72899274577031,
+        "target": "Both_aerial",
+        "yaw_rad": 2.356194490192345
+      },
+      {
+        "candidate": "Both_aerial_c6",
+        "lat": 30.388120868201877,
+        "lon": -97.7289292252874,
+        "target": "Both_aerial",
+        "yaw_rad": 3.141592653589793
+      },
+      {
+        "candidate": "Both_aerial_c7",
+        "lat": 30.38814356459561,
+        "lon": -97.72886570480449,
+        "target": "Both_aerial",
+        "yaw_rad": -2.356194490192345
+      }
+    ]
+  }
+}
