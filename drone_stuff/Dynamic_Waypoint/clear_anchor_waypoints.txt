@@ -1,0 +1,6 @@
+# Bootstrap waypoints for FC clear/prime only (not flown as the real mission).
+# Edit lat/lon to your takeoff area. Alt is metres above takeoff.
+# Replace with values from: rostopic echo -n 1 /dji_sdk/gps_position
+
+30.3139733, -97.7432618, 10
+30.3139999, -97.7429225, 10

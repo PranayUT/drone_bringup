@@ -122,8 +122,8 @@ Add **Image** display → set **Image Topic** to your topic (e.g. `/dji_sdk/main
 ## 4. Run waypoint mission + record (your usual flow)
 
 ```bash
-cd ~/Documents/drone_stuff
-./start_mission_synchronized.sh ~/Documents/drone_stuff/ramsay_wps.txt
+cd ~/Documents/catkin_ws/src/drone_bringup/drone_stuff
+./start_mission_synchronized.sh ~/Documents/catkin_ws/src/drone_bringup/drone_stuff/ramsay_wps.txt
 ```
 
 That starts `rosbag record -a` (all topics). If camera topics are not publishing, the bag will still have GPS, `flight_status`, IMU, etc.

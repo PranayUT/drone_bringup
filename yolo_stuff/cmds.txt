@@ -1,1 +1,9 @@
-python3 bench_best_v1.py --source camera --weights best-v1.engine --task segment --preview --infer-ever 2c
+# Full guide: see YOLO_RECORDING.md
+# Primary real-world YOLO — saves to Extreme SSD (/media/drone/extreme1/yolo_records/...)
+# Mount the drive first. Ctrl+C to stop.
+export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libgomp.so.1
+cd ~/Documents/catkin_ws/src/drone_bringup/yolo_stuff
+python3 record_yolo_masks.py --realworld --half
+
+# Optional: bench_best_v1.py — quick preview only, no mask files saved
+# python3 bench_best_v1.py --source camera --weights best-v1.engine --task segment --preview --infer-every 2

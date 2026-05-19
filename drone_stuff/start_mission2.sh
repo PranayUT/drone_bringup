@@ -12,7 +12,9 @@
 # Loiter mission: dji_sdk + waypoint_runner2 (orbit radius locked from height above takeoff at arrival).
 #
 
-CATKIN_WS=~/Documents/catkin_ws
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
 log() { echo "[$(date +%H:%M:%S)] $*"; }
 
 STAMP=$(date +%Y-%m-%d_%H-%M-%S)

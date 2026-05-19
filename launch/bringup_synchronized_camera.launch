@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    Experimental: synchronized bringup + Jetson CSI camera.
+    Does not modify bringup_synchronized.launch — merge later if this works.
+
+    Usage:
+      roslaunch drone_bringup bringup_synchronized_camera.launch \
+        waypoints_file:=/path/to/waypoints.txt speed:=5.0 arrive_radius:=1.0
+
+    Topics (default cam csi_cam_0):
+      /csi_cam_0/image_raw
+      /csi_cam_0/camera_info
+  -->
+
+  <arg name="camera_width"  default="1280"/>
+  <arg name="camera_height" default="720"/>
+  <arg name="camera_fps"    default="30"/>
+
+  <include file="$(find jetson_csi_cam)/jetson_csi_cam.launch">
+    <arg name="width"  value="$(arg camera_width)"/>
+    <arg name="height" value="$(arg camera_height)"/>
+    <arg name="fps"    value="$(arg camera_fps)"/>
+    <arg name="sync_sink" value="false"/>
+  </include>
+
+  <include file="$(find dji_sdk)/launch/sdk.launch"/>
+
+  <arg name="waypoints_file"/>
+  <arg name="speed"         default="5.0"/>
+  <arg name="arrive_radius" default="1.0"/>
+  <arg name="dynamic_mission_file" default=""/>
+  <include file="$(find drone_bringup)/launch/waypoint_runner_synchronized.launch">
+    <arg name="waypoints_file" value="$(arg waypoints_file)"/>
+    <arg name="speed"          value="$(arg speed)"/>
+    <arg name="arrive_radius"  value="$(arg arrive_radius)"/>
+    <arg name="dynamic_mission_file" value="$(arg dynamic_mission_file)"/>
+  </include>
+</launch>

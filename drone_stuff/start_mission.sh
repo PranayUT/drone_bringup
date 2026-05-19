@@ -10,8 +10,9 @@
 # - To skip the daemon bounce (e.g. you already reset nvargus and no stale state): SKIP_NVARGUS_RESTART=1 $0 ...
 #
 
-CATKIN_WS=~/Documents/catkin_ws
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
 if mkdir -p "/media/drone/extreme1/logs/$TIMESTAMP" 2>/dev/null; then
     LOG_DIR=/media/drone/extreme1/logs/$TIMESTAMP

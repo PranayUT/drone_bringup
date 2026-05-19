@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<launch>
+  <!--
+    CSI camera only (no DJI / waypoint runner). Use to verify gscam + rosbag before a mission.
+
+      roslaunch drone_bringup csi_camera_only.launch
+      roslaunch drone_bringup csi_camera_only.launch width:=1920 height:=1080 fps:=30
+
+    Publishes (default cam_name csi_cam_0):
+      /csi_cam_0/image_raw
+      /csi_cam_0/camera_info
+      /csi_cam_0/image_raw/compressed   (if image_transport plugins are available)
+  -->
+  <arg name="sensor_id" default="0"/>
+  <arg name="cam_name"  default="csi_cam_$(arg sensor_id)"/>
+  <arg name="width"     default="1280"/>
+  <arg name="height"    default="720"/>
+  <arg name="fps"       default="30"/>
+  <arg name="sync_sink" default="false"/>
+
+  <include file="$(find jetson_csi_cam)/jetson_csi_cam.launch">
+    <arg name="sensor_id" value="$(arg sensor_id)"/>
+    <arg name="cam_name"  value="$(arg cam_name)"/>
+    <arg name="width"     value="$(arg width)"/>
+    <arg name="height"    value="$(arg height)"/>
+    <arg name="fps"       value="$(arg fps)"/>
+    <arg name="sync_sink" value="$(arg sync_sink)"/>
+  </include>
+</launch>

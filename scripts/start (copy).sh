@@ -1,6 +1,8 @@
 #!/bin/bash
 
-CATKIN_WS=~/Documents/catkin_ws
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
 LOG_DIR=~/.drone_logs/$(date +%Y-%m-%d_%H-%M-%S)
 mkdir -p "$LOG_DIR"
 echo "Logs: $LOG_DIR"

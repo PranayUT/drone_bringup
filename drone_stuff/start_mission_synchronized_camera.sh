@@ -1,6 +1,9 @@
 #!/bin/bash
 #
-# start_mission_synchronized.sh
+# start_mission_synchronized_camera.sh  (EXPERIMENTAL — does not replace start_mission_synchronized.sh)
+#
+# Same gates as start_mission_synchronized.sh, but uses bringup_synchronized_camera.launch
+# (dji_sdk + waypoint runner + jetson_csi_cam). Test with test_camera_record.sh first.
 #
 # Same purpose as start_mission.sh, but every blind `sleep` is replaced by a
 # poll-until-ready gate. The "clear old mission" step lives entirely inside
@@ -8,8 +11,8 @@
 # with bounded budget), because dji_sdk_node's local-state guard makes a shell-side
 # STOP a no-op against the FC when called from a fresh process.
 #
-# Launch architecture mirrors start_mission.sh: a single roslaunch of
-# drone_bringup/bringup_synchronized.launch brings up dji_sdk + the
+# Launch architecture: a single roslaunch of
+# drone_bringup/bringup_synchronized_camera.launch brings up CSI cam + dji_sdk +
 # synchronized waypoint runner together. This script's job is to:
 #
 #   1. Tear down anything left over from a previous run (and wait for it).
@@ -24,7 +27,12 @@
 #        START MISSION
 #      and prints progress to the same terminal via roslaunch output="screen".
 #
-# Usage: start_mission_synchronized.sh <waypoints_file> [speed] [arrive_radius]
+# Usage: start_mission_synchronized_camera.sh [clear_anchor_waypoints] [speed] [arrive_radius]
+#
+# Dynamic mission (default USE_DYNAMIC_MISSION=1):
+#   Dynamic_Waypoint/dynamic_mission.txt — created before or after takeoff.
+#   Runner clears FC, waits until that file exists, then uploads it.
+#   Bootstrap waypoints (for clear only) default to Dynamic_Waypoint/clear_anchor_waypoints.txt
 #
 
 set -u
@@ -42,7 +50,7 @@ else
     echo "WARNING: /media/drone/extreme1 not writable - logging to $LOG_DIR"
 fi
 
-MAIN_LOG="$LOG_DIR/start_mission.log"
+MAIN_LOG="$LOG_DIR/start_mission_camera.log"
 log() { local s; s="[$(date +%H:%M:%S)] $*"; echo "$s" | tee -a "$MAIN_LOG"; }
 
 # Tunables (seconds). Each gate polls until success OR this max elapses — then
@@ -55,26 +63,97 @@ SERVICE_WAIT="${SERVICE_WAIT:-30}"
 PROC_DIE_WAIT="${PROC_DIE_WAIT:-10}"
 
 # ---------------------------------------------------------------------------
+# Dynamic waypoint directory (single mission file: dynamic_mission.txt)
+# ---------------------------------------------------------------------------
+DYNAMIC_WAYPOINT_DIR="$SCRIPT_DIR/Dynamic_Waypoint"
+DYNAMIC_MISSION_FILE="$DYNAMIC_WAYPOINT_DIR/dynamic_mission.txt"
+CLEAR_ANCHOR_DEFAULT="$DYNAMIC_WAYPOINT_DIR/clear_anchor_waypoints.txt"
+USE_DYNAMIC_MISSION="${USE_DYNAMIC_MISSION:-1}"
+
+mkdir -p "$DYNAMIC_WAYPOINT_DIR"
+
+ensure_single_mission_in_dynamic_dir() {
+    local dir="$1"
+    local mission_count=0
+    local extra=""
+    shopt -s nullglob
+    for f in "$dir"/*.txt; do
+        local base
+        base="$(basename "$f")"
+        case "$base" in
+            clear_anchor_waypoints.txt) continue ;;
+            dynamic_mission.txt)
+                mission_count=$((mission_count + 1))
+                ;;
+            *)
+                extra="${extra} ${base}"
+                mission_count=$((mission_count + 1))
+                ;;
+        esac
+    done
+    shopt -u nullglob
+    if [ -n "$extra" ]; then
+        log "WARN: unexpected .txt in Dynamic_Waypoint (only dynamic_mission.txt should be the mission):$extra"
+    fi
+    if [ "$mission_count" -gt 1 ]; then
+        log "ERROR: multiple mission .txt files in $dir — only one mission allowed"
+        return 1
+    fi
+    return 0
+}
+
+wait_for_dynamic_mission_file() {
+    local path="$1"
+    local interval="${DYNAMIC_MISSION_POLL_SEC:-5}"
+    log "Waiting for dynamic mission file (post-FC-clear upload source): $path"
+    while [ ! -f "$path" ]; do
+        log "  ... still waiting for $path to exist (create with Dynamic_Waypoint/create_dynamic_mission.sh)"
+        sleep "$interval"
+    done
+    log "Dynamic mission file ready: $path"
+}
+
+# ---------------------------------------------------------------------------
 # Args
 # ---------------------------------------------------------------------------
-if [ -z "${1:-}" ]; then
-    echo "Usage: $0 <waypoints_file> [speed] [arrive_radius]"
-    echo ""
-    echo "Same as start_mission.sh but with every fixed sleep replaced by a"
-    echo "poll-until-ready gate, and explicit FC mission clearing done inside"
-    echo "waypoint_runner_synchronized.py."
-    echo ""
-    echo "Optional env (seconds, each gate aborts the script if exceeded):"
-    echo "  ROSCORE_WAIT NODE_WAIT TOPIC_WAIT SERVICE_WAIT PROC_DIE_WAIT"
-    exit 1
+if [ "$USE_DYNAMIC_MISSION" = "1" ]; then
+    if [ -n "${1:-}" ] && [ -f "$1" ]; then
+        WAYPOINTS_FILE="$(realpath "$1")"
+        SPEED="${2:-0.5}"
+        ARRIVE_RADIUS="${3:-1.0}"
+    else
+        WAYPOINTS_FILE="$(realpath "$CLEAR_ANCHOR_DEFAULT")"
+        SPEED="${1:-0.5}"
+        ARRIVE_RADIUS="${2:-1.0}"
+    fi
+    DYNAMIC_MISSION_ARG="$DYNAMIC_MISSION_FILE"
+else
+    if [ -z "${1:-}" ]; then
+        echo "Usage: $0 <waypoints_file> [speed] [arrive_radius]"
+        echo ""
+        echo "Experimental: synchronized mission + CSI camera in rosbag (-a)."
+        echo "Does not modify start_mission_synchronized.sh."
+        echo ""
+        echo "Dynamic mission (default on): set USE_DYNAMIC_MISSION=1 (default)"
+        echo "  Bootstrap: Dynamic_Waypoint/clear_anchor_waypoints.txt"
+        echo "  Mission:   Dynamic_Waypoint/dynamic_mission.txt (waited for after FC clear)"
+        echo ""
+        echo "Optional env:"
+        echo "  USE_DYNAMIC_MISSION=0   upload only from CLI waypoints file"
+        echo "  SKIP_NVARGUS_RESTART=1  skip nvargus-daemon restart before bringup"
+        echo "  ROSCORE_WAIT NODE_WAIT TOPIC_WAIT SERVICE_WAIT PROC_DIE_WAIT"
+        exit 1
+    fi
+    WAYPOINTS_FILE="$(realpath "$1")"
+    SPEED="${2:-0.5}"
+    ARRIVE_RADIUS="${3:-1.0}"
+    DYNAMIC_MISSION_ARG=""
 fi
-WAYPOINTS_FILE="$(realpath "$1")"
+
 if [ ! -f "$WAYPOINTS_FILE" ]; then
     echo "ERROR: waypoints file not found: $WAYPOINTS_FILE"
     exit 1
 fi
-SPEED="${2:-0.5}"
-ARRIVE_RADIUS="${3:-1.0}"
 
 # ---------------------------------------------------------------------------
 # Source ROS environment once for the parent shell
@@ -141,13 +220,13 @@ stop_local_mission_stack() {
     log "Stopping any previous local mission stack..."
 
     # rosbag: SIGINT first so it finalises its index, then enforce.
-    if pgrep -f 'rosbag record'    >/dev/null 2>&1 \
-    || pgrep -f 'record_rosbag.sh' >/dev/null 2>&1; then
+    if pgrep -f 'rosbag record'           >/dev/null 2>&1 \
+    || pgrep -f 'record_rosbag_camera.sh' >/dev/null 2>&1; then
         log "  stopping previous rosbag..."
-        pkill -INT -f 'rosbag record'    2>/dev/null || true
-        pkill -INT -f 'record_rosbag.sh' 2>/dev/null || true
-        wait_proc_dies 'rosbag record'    5
-        wait_proc_dies 'record_rosbag.sh' 5
+        pkill -INT -f 'rosbag record'           2>/dev/null || true
+        pkill -INT -f 'record_rosbag_camera.sh' 2>/dev/null || true
+        wait_proc_dies 'rosbag record'           5
+        wait_proc_dies 'record_rosbag_camera.sh' 5
     fi
 
     # Runners and bringup
@@ -169,6 +248,13 @@ stop_local_mission_stack() {
         wait_proc_dies 'dji_sdk_node' "$PROC_DIE_WAIT"
     fi
 
+    if pgrep -f 'gscam' >/dev/null 2>&1; then
+        log "  stopping gscam / CSI camera..."
+        pkill -f 'gscam' 2>/dev/null || true
+        pkill -f 'csi_cam_' 2>/dev/null || true
+        wait_proc_dies 'gscam' 5
+    fi
+
     log "  teardown complete"
 }
 
@@ -188,29 +274,48 @@ trap cleanup SIGINT SIGTERM
 # Main
 # ---------------------------------------------------------------------------
 log "Logs: $LOG_DIR"
-log "Waypoints: $WAYPOINTS_FILE  speed: ${SPEED} m/s  arrive_radius: ${ARRIVE_RADIUS} m"
+log "Waypoints (bootstrap/clear): $WAYPOINTS_FILE  speed: ${SPEED} m/s  arrive_radius: ${ARRIVE_RADIUS} m"
+if [ "$USE_DYNAMIC_MISSION" = "1" ]; then
+    if ! ensure_single_mission_in_dynamic_dir "$DYNAMIC_WAYPOINT_DIR"; then
+        exit 1
+    fi
+    log "Dynamic mission enabled: $DYNAMIC_MISSION_FILE"
+    log "  After FC clear, runner waits for that file then uploads it (see bringup.log)"
+    if [ -f "$DYNAMIC_MISSION_FILE" ]; then
+        log "  (file already present — no wait needed after clear)"
+    else
+        log "  (file not present yet — runner will log 'still waiting' until created)"
+    fi
+fi
 
 stop_local_mission_stack
 
-# Single roslaunch for dji_sdk + synchronized waypoint runner.
-# The runner does its own poll-until-ready inside Python, so no fixed-sleep
-# launch-prefix is needed in waypoint_runner_synchronized.launch.
-log "Launching bringup_synchronized.launch..."
+if [ "${SKIP_NVARGUS_RESTART:-0}" != "1" ]; then
+    log "Restarting nvargus-daemon for CSI camera..."
+    sudo systemctl restart nvargus-daemon 2>&1 | tee -a "$LOG_DIR/nvargus.log" || true
+    sleep "${NVARGUS_SETTLE_SEC:-3}"
+else
+    log "SKIP_NVARGUS_RESTART=1 — not restarting nvargus-daemon"
+fi
+
+log "Launching bringup_synchronized_camera.launch..."
 # roslaunch + Python nodes often fully-buffer stdout when piped; that left
 # bringup.log at 0 bytes and made the mission look "stuck" with no [INFO] lines.
 # Line-buffer through stdbuf; PYTHONUNBUFFERED helps rospy children.
 export PYTHONUNBUFFERED=1
 if command -v stdbuf >/dev/null 2>&1; then
-    stdbuf -oL -eL roslaunch drone_bringup bringup_synchronized.launch \
+    stdbuf -oL -eL roslaunch drone_bringup bringup_synchronized_camera.launch \
         waypoints_file:="$WAYPOINTS_FILE" \
         speed:="$SPEED" \
         arrive_radius:="$ARRIVE_RADIUS" \
+        dynamic_mission_file:="$DYNAMIC_MISSION_ARG" \
         2>&1 | stdbuf -oL -eL tee -a "$LOG_DIR/bringup.log" &
 else
-    roslaunch drone_bringup bringup_synchronized.launch \
+    roslaunch drone_bringup bringup_synchronized_camera.launch \
         waypoints_file:="$WAYPOINTS_FILE" \
         speed:="$SPEED" \
         arrive_radius:="$ARRIVE_RADIUS" \
+        dynamic_mission_file:="$DYNAMIC_MISSION_ARG" \
         2>&1 | tee -a "$LOG_DIR/bringup.log" &
 fi
 BRINGUP_PID=$!
@@ -265,6 +370,14 @@ if ! wait_until "waypoint_runner_synchronized node" "$NODE_WAIT" test_waypoint_r
     exit 1
 fi
 
+# Optional shell-side wait (runner also waits after FC clear; this logs to start_mission_camera.log)
+if [ "$USE_DYNAMIC_MISSION" = "1" ] && [ ! -f "$DYNAMIC_MISSION_FILE" ]; then
+    log "Pre-flight: dynamic_mission.txt not on disk yet (runner will wait again after FC clear)"
+    if [ "${SHELL_WAIT_FOR_DYNAMIC:-0}" = "1" ]; then
+        wait_for_dynamic_mission_file "$DYNAMIC_MISSION_FILE" || exit 1
+    fi
+fi
+
 # Liveness re-check just before starting rosbag
 if ! kill -0 "$BRINGUP_PID" 2>/dev/null; then
     log "FATAL: bringup roslaunch died between gates - aborting"
@@ -278,20 +391,22 @@ if command -v stdbuf >/dev/null 2>&1; then
     (
         export LOG_DIR
         export PYTHONUNBUFFERED=1
-        "$SCRIPT_DIR/record_rosbag.sh"
+        export ROSBAG_NAME=mission
+        "$SCRIPT_DIR/record_rosbag_camera.sh"
     ) 2>&1 | stdbuf -oL -eL tee -a "$LOG_DIR/bag.log" &
 else
     (
         export LOG_DIR
         export PYTHONUNBUFFERED=1
-        "$SCRIPT_DIR/record_rosbag.sh"
+        export ROSBAG_NAME=mission
+        "$SCRIPT_DIR/record_rosbag_camera.sh"
     ) 2>&1 | tee -a "$LOG_DIR/bag.log" &
 fi
 
 # Hand off entirely to roslaunch: the synchronized runner is one of the nodes
-# inside bringup_synchronized.launch, and prints progress to this terminal via
+# inside bringup_synchronized_camera.launch, and prints progress to this terminal via
 # output="screen". Wait until the user Ctrl+Cs (or roslaunch dies on its own).
 log "All gates passed. Waypoint runner is running inside roslaunch."
 log "If you see no [INFO] lines here, open: tail -f $LOG_DIR/bringup.log"
-log "Press Ctrl+C to tear down dji_sdk, rosbag, and the runner."
+log "Press Ctrl+C to tear down CSI cam, dji_sdk, rosbag, and the runner."
 wait

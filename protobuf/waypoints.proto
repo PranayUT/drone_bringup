@@ -5,7 +5,7 @@ package telemetry;
 message Waypoint {
   double lat = 1;
   double lon = 2;
-  double alt = 3;
+  double yaw = 3;
 }
 
 message WaypointList {

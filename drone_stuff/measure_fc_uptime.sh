@@ -31,7 +31,10 @@
 
 set -uo pipefail
 
-CATKIN_WS="${CATKIN_WS:-$HOME/Documents/catkin_ws}"
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_PKG_DIR="$(cd "$_SCRIPT_DIR/.." && pwd)"
+_DEFAULT_CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
+CATKIN_WS="${CATKIN_WS:-$_DEFAULT_CATKIN_WS}"
 TIMEOUT="${TIMEOUT:-60}"
 DO_CLEAR=1
 for arg in "$@"; do

@@ -15,7 +15,7 @@ Waypoints file format (one waypoint per line, blank/# lines ignored):
 
 Requirements: ROS Noetic + dji_sdk running
     source /opt/ros/noetic/setup.bash
-    source ~/Documents/catkin_ws/devel/setup.bash
+    source <catkin_ws>/devel/setup.bash
 """
 
 import sys

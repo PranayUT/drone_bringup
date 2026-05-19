@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import sys
 import time
 
@@ -230,6 +231,22 @@ def wait_until(predicate, desc, timeout_sec):
             rospy.loginfo("  ... still waiting for %s (%.0fs remaining)", desc, deadline - now)
             last_log = now
         time.sleep(0.2)
+    return False
+
+
+def wait_for_file(path, log_interval_sec=5.0):
+    """Poll until ``path`` exists. No timeout — logs status periodically."""
+    rospy.loginfo("Waiting for dynamic mission file to exist: %s", path)
+    last_log = 0.0
+    while not rospy.is_shutdown():
+        if os.path.isfile(path):
+            rospy.loginfo("Dynamic mission file found: %s", path)
+            return True
+        now = time.time()
+        if now - last_log >= log_interval_sec:
+            rospy.loginfo("  ... still waiting for %s (create it when ready)", path)
+            last_log = now
+        time.sleep(0.5)
     return False
 
 
@@ -549,6 +566,12 @@ def main():
         metavar="SEC",
         help="Max seconds for drain + dummy + disarm (default: %.0f)" % CLEAR_MISSION_TIMEOUT_SEC,
     )
+    parser.add_argument(
+        "--dynamic-mission-file",
+        default="",
+        metavar="PATH",
+        help="After FC clear, wait for this file then upload mission from it (not bootstrap file)",
+    )
     args = parser.parse_args(rospy.myargv(argv=sys.argv)[1:])
 
     sys.stderr.write("waypoint_runner_synchronized: process started (before rospy.init_node)\n")
@@ -675,6 +698,32 @@ def main():
             args.speed,
             args.clear_timeout,
         )
+
+    dynamic_path = (args.dynamic_mission_file or "").strip()
+    if dynamic_path:
+        dynamic_path = os.path.abspath(dynamic_path)
+        rospy.loginfo("=== DYNAMIC MISSION: wait for file after FC clear ===")
+        if not wait_for_file(dynamic_path):
+            rospy.logfatal("Shutdown while waiting for dynamic mission file.")
+            sys.exit(1)
+        rospy.loginfo("Loading dynamic mission from: %s", dynamic_path)
+        waypoints = parse_waypoints(dynamic_path)
+        if len(waypoints) < 2:
+            rospy.logfatal("Dynamic mission needs at least 2 waypoints; got %d.", len(waypoints))
+            sys.exit(1)
+        rospy.loginfo("Loaded %d waypoints from dynamic mission:", len(waypoints))
+        for i, (lat, lon, alt, yaw) in enumerate(waypoints):
+            if yaw is None:
+                rospy.loginfo("  WP%d: lat=%.7f lon=%.7f alt=%.1f m  yaw=AUTO", i + 1, lat, lon, alt)
+            else:
+                rospy.loginfo(
+                    "  WP%d: lat=%.7f lon=%.7f alt=%.1f m  yaw=%.3f rad",
+                    i + 1,
+                    lat,
+                    lon,
+                    alt,
+                    yaw,
+                )
 
     rospy.loginfo("=== UPLOAD NEW MISSION ===")
     task = build_waypoint_task(waypoints, args.speed)

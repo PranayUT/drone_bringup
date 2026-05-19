@@ -22,11 +22,14 @@
   <!-- Arrival detection radius in metres -->
   <arg name="arrive_radius" default="1.0"/>
 
+  <!-- If set: after FC clear, wait for this file then upload mission from it -->
+  <arg name="dynamic_mission_file" default=""/>
+
   <node pkg="drone_bringup"
         type="waypoint_runner_synchronized.py"
         name="waypoint_runner_synchronized"
         output="screen"
-        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius)">
+        args="$(arg waypoints_file) --speed $(arg speed) --arrive-radius $(arg arrive_radius) $(eval '--dynamic-mission-file ' + dynamic_mission_file if dynamic_mission_file else '')">
     <env name="PYTHONUNBUFFERED" value="1"/>
   </node>
 </launch>
