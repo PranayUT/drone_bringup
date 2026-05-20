@@ -42,12 +42,12 @@ _PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
 
-if mkdir -p "/media/drone/extreme1/logs/$TIMESTAMP" 2>/dev/null; then
-    LOG_DIR=/media/drone/extreme1/logs/$TIMESTAMP
+if mkdir -p "/media/drone/extreme/logs/$TIMESTAMP" 2>/dev/null; then
+    LOG_DIR=/media/drone/extreme/logs/$TIMESTAMP
 else
     LOG_DIR=~/logs/$TIMESTAMP
     mkdir -p "$LOG_DIR"
-    echo "WARNING: /media/drone/extreme1 not writable - logging to $LOG_DIR"
+    echo "WARNING: /media/drone/extreme not writable - logging to $LOG_DIR"
 fi
 
 MAIN_LOG="$LOG_DIR/start_mission_camera.log"
@@ -119,11 +119,11 @@ wait_for_dynamic_mission_file() {
 if [ "$USE_DYNAMIC_MISSION" = "1" ]; then
     if [ -n "${1:-}" ] && [ -f "$1" ]; then
         WAYPOINTS_FILE="$(realpath "$1")"
-        SPEED="${2:-0.5}"
+        SPEED="${2:-2.0}"
         ARRIVE_RADIUS="${3:-1.0}"
     else
         WAYPOINTS_FILE="$(realpath "$CLEAR_ANCHOR_DEFAULT")"
-        SPEED="${1:-0.5}"
+        SPEED="${1:-2.0}"
         ARRIVE_RADIUS="${2:-1.0}"
     fi
     DYNAMIC_MISSION_ARG="$DYNAMIC_MISSION_FILE"
@@ -145,9 +145,9 @@ else
         exit 1
     fi
     WAYPOINTS_FILE="$(realpath "$1")"
-    SPEED="${2:-0.5}"
+    SPEED="${2:-2.0}"
     ARRIVE_RADIUS="${3:-1.0}"
-    DYNAMIC_MISSION_ARG=""
+    DYNAMIC_MISSION_ARG="__none__"
 fi
 
 if [ ! -f "$WAYPOINTS_FILE" ]; then
@@ -248,12 +248,12 @@ stop_local_mission_stack() {
         wait_proc_dies 'dji_sdk_node' "$PROC_DIE_WAIT"
     fi
 
-    if pgrep -f 'gscam' >/dev/null 2>&1; then
-        log "  stopping gscam / CSI camera..."
-        pkill -f 'gscam' 2>/dev/null || true
-        pkill -f 'csi_cam_' 2>/dev/null || true
-        wait_proc_dies 'gscam' 5
-    fi
+    # if pgrep -f 'gscam' >/dev/null 2>&1; then
+    #     log "  stopping gscam / CSI camera..."
+    #     pkill -f 'gscam' 2>/dev/null || true
+    #     pkill -f 'csi_cam_' 2>/dev/null || true
+    #     wait_proc_dies 'gscam' 5
+    # fi
 
     log "  teardown complete"
 }

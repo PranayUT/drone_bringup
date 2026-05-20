@@ -460,7 +460,6 @@ def masks_to_gps(
     attitude,
     labels=None,
     camera_angle: float = 45.0,
-    fov_h: float = 90.0,
 ) -> list[tuple[float, float, str]]:
     """
     Project each mask's centroid pixel to a GPS coordinate on the ground plane.
@@ -482,8 +481,6 @@ def masks_to_gps(
     camera_angle : float
         Degrees the camera optical axis is tilted *below* horizontal toward
         the body +X (forward) axis. Default 45°.
-    fov_h : float
-        Horizontal field of view in degrees. Assumes square pixels. Default 90°.
 
     Returns
     -------
@@ -512,10 +509,9 @@ def masks_to_gps(
 
     drone_pos = [lat, lon, alt]
 
-    # ── Camera intrinsics ────────────────────────────────────────────────────
-    fx = (img_w / 2.0) / math.tan(math.radians(fov_h) / 2.0)
-    fy = fx
-    cx_px, cy_px = img_w / 2.0, img_h / 2.0
+    # ── Camera intrinsics (csi_cam_0 calibration) ────────────────────────────
+    fx, fy = 1419.773121846583, 1435.298099980903
+    cx_px, cy_px = 660.4389590663585, 293.0900556923676
 
     # ── Camera-to-body rotation matrix ───────────────────────────────────────
     # Camera optical axis is tilted `camera_angle`° below body +X (forward).
@@ -622,7 +618,7 @@ def _patch_torchvision_nms_for_jetson():
 def _grab_frame(bridge, timeout=10.0):
     from sensor_msgs.msg import Image as RosImage
     import rospy
-    msg = rospy.wait_for_message("/cam0/image_raw", RosImage, timeout=timeout)
+    msg = rospy.wait_for_message("/csi_cam0/image_raw", RosImage, timeout=timeout)
     return bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
 
 

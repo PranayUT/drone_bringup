@@ -112,7 +112,9 @@ def parse_waypoints(path):
     with open(path) as f:
         for lineno, raw in enumerate(f, 1):
             line = raw.strip()
-            if not line or line.startswith("#"):
+            if "#" in line:
+                line = line.split("#", 1)[0].strip()
+            if not line:
                 continue
             parts = [p.strip() for p in line.split(",")]
             if len(parts) not in (3, 4):
@@ -700,6 +702,8 @@ def main():
         )
 
     dynamic_path = (args.dynamic_mission_file or "").strip()
+    if dynamic_path in ("", "__none__", "none"):
+        dynamic_path = ""
     if dynamic_path:
         dynamic_path = os.path.abspath(dynamic_path)
         rospy.loginfo("=== DYNAMIC MISSION: wait for file after FC clear ===")

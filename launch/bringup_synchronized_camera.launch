@@ -17,12 +17,12 @@
   <arg name="camera_height" default="720"/>
   <arg name="camera_fps"    default="30"/>
 
-  <include file="$(find jetson_csi_cam)/jetson_csi_cam.launch">
+  <!-- <include file="$(find jetson_csi_cam)/jetson_csi_cam.launch">
     <arg name="width"  value="$(arg camera_width)"/>
     <arg name="height" value="$(arg camera_height)"/>
     <arg name="fps"    value="$(arg camera_fps)"/>
     <arg name="sync_sink" value="false"/>
-  </include>
+  </include> -->
 
   <include file="$(find dji_sdk)/launch/sdk.launch"/>
 
