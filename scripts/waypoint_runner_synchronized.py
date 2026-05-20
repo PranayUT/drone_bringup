@@ -153,15 +153,25 @@ def build_waypoint_task(waypoints, idle_speed):
     task.action_on_rc_lost = dji_msg.MissionWaypointTask.ACTION_AUTO
     task.gimbal_pitch_mode = dji_msg.MissionWaypointTask.GIMBAL_PITCH_FREE
 
-    for lat, lon, alt, yaw in waypoints:
+    # Pre-compute target_yaw for every waypoint so we can pick the shortest
+    # rotation direction (turn_mode 0=CW, 1=CCW) between consecutive headings.
+    target_yaws = [
+        int(round(yaw_rad_to_dji_deg(yaw))) if yaw is not None else 0
+        for _, _, _, yaw in waypoints
+    ]
+    prev_yaw = target_yaws[0]  # first waypoint: no prior heading, delta = 0 → CW
+
+    for i, (lat, lon, alt, _) in enumerate(waypoints):
         wp = dji_msg.MissionWaypoint()
         wp.latitude = lat
         wp.longitude = lon
         wp.altitude = float(alt)
         wp.damping_distance = 0.0
-        wp.target_yaw = int(round(yaw_rad_to_dji_deg(yaw))) if yaw is not None else 0
+        wp.target_yaw = target_yaws[i]
         wp.target_gimbal_pitch = 0
-        wp.turn_mode = 0
+        delta = (target_yaws[i] - prev_yaw + 540.0) % 360.0 - 180.0
+        wp.turn_mode = 0 if delta >= 0 else 1  # 0=CW, 1=CCW — shortest path
+        prev_yaw = target_yaws[i]
         wp.has_action = 0
         wp.action_time_limit = 0
         action = dji_msg.MissionWaypointAction()

@@ -29,11 +29,9 @@
   <arg name="waypoints_file"/>
   <arg name="speed"         default="5.0"/>
   <arg name="arrive_radius" default="1.0"/>
-  <arg name="dynamic_mission_file" default=""/>
   <include file="$(find drone_bringup)/launch/waypoint_runner_synchronized.launch">
     <arg name="waypoints_file" value="$(arg waypoints_file)"/>
     <arg name="speed"          value="$(arg speed)"/>
     <arg name="arrive_radius"  value="$(arg arrive_radius)"/>
-    <arg name="dynamic_mission_file" value="$(arg dynamic_mission_file)"/>
   </include>
 </launch>
