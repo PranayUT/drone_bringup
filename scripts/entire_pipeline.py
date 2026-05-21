@@ -27,9 +27,9 @@ _ENGINE_PATH = _SCRIPT_DIR.parent / "yolo_stuff" / "best-v2-shuffled.engine"
 
 # ── HVRP configuration ────────────────────────────────────────────────────────
 
-KML_PATH     = Path(__file__).parent / "Co-GLANCE-1.kml"
-AERIAL_DEPOT = (30.3926, -97.7285)  # (lat, lon)
-GROUND_DEPOT = (30.3926, -97.7285)  # (lat, lon)
+KML_PATH     = Path(__file__).parent / "Co-GLANCE-2.kml"
+AERIAL_DEPOT = (30.3930908, -97.7285992)  # (lat, lon)
+GROUND_DEPOT = (30.3930908, -97.7285992)  # (lat, lon)
 
 
 # ── HVRP constants ────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ VALID_NODE_TYPES = {"aerial", "ground", "both", "either"}
 LARGE_PENALTY    = 1_000_000
 N_CANDIDATES     = 8
 INITIAL_RADIUS_M = 5.0
-AIR_RADIUS_M     = 15.0
+AIR_RADIUS_M     = 20.0
 RADIUS_STEP_M    = 2.0
 
 KML_NS = "http://www.opengis.net/kml/2.2"
@@ -510,8 +510,8 @@ def masks_to_gps(
     drone_pos = [lat, lon, alt]
 
     # ── Camera intrinsics (csi_cam_0 calibration) ────────────────────────────
-    fx, fy = 1419.773121846583, 1435.298099980903
-    cx_px, cy_px = 660.4389590663585, 293.0900556923676
+    fx, fy = 1217.642102546154, 1205.813741470882
+    cx_px, cy_px = 539.4282560125398, 352.5539369151344
 
     # ── Camera-to-body rotation matrix ───────────────────────────────────────
     # Camera optical axis is tilted `camera_angle`° below body +X (forward).
@@ -618,7 +618,7 @@ def _patch_torchvision_nms_for_jetson():
 def _grab_frame(bridge, timeout=10.0):
     from sensor_msgs.msg import Image as RosImage
     import rospy
-    msg = rospy.wait_for_message("/csi_cam0/image_raw", RosImage, timeout=timeout)
+    msg = rospy.wait_for_message("/csi_cam_0/image_raw", RosImage, timeout=timeout)
     return bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
 
 
@@ -660,99 +660,103 @@ def _masks_from_result(result, frame_shape):
     return masks, labels
 
 
-def run_pipeline():
-    import rospy
-    from cv_bridge import CvBridge
-    from ultralytics import YOLO
+def _run_yolo_subprocess(frame: np.ndarray) -> tuple[list, list, np.ndarray]:
+    """Run YOLO in a child process so TensorRT fully releases GPU memory on exit."""
+    import subprocess
+    import tempfile
+    import json
 
-    rospy.init_node("drone_pipeline", anonymous=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir)
+        np.savez_compressed(str(tmp / "frame.npz"), frame=frame)
 
-    rospy.loginfo("Grabbing frame, GPS, and attitude from ROS topics...")
-    bridge = CvBridge()
-    frame = _grab_frame(bridge)
-    gps = _grab_gps()
-    attitude = _grab_attitude()
-    rospy.loginfo(f"Frame shape: {frame.shape}  GPS: {gps}")
+        script = f"""
+import sys, json
+import numpy as np
+import cv2
 
-    # ── Load model ────────────────────────────────────────────────────────────
-    _patch_torchvision_nms_for_jetson()
-    rospy.loginfo(f"Loading model: {_ENGINE_PATH}")
-    model = YOLO(str(_ENGINE_PATH), task="segment")
+try:
+    import torch
+    from torchvision.ops import nms
+    boxes = torch.rand(2, 4, device='cuda')
+    scores = torch.rand(2, device='cuda')
+    nms(boxes, scores, 0.5)
+except Exception:
+    import types
+    try:
+        from ultralytics.utils.nms import TorchNMS
+        ops = types.SimpleNamespace(nms=lambda b, s, i: TorchNMS.nms(b, s, i))
+    except Exception:
+        ops = types.SimpleNamespace(nms=None)
+    tv = types.ModuleType('torchvision')
+    tv.ops = ops
+    sys.modules['torchvision'] = tv
+    sys.modules['torchvision.ops'] = ops
 
-    for _ in range(3):
-        model.predict(source=frame, imgsz=640, device="0", half=True, verbose=False)
+frame = np.load({repr(str(tmp / 'frame.npz'))})['frame']
+from ultralytics import YOLO
+model = YOLO({repr(str(_ENGINE_PATH))}, task='segment')
+for _ in range(3):
+    model.predict(source=frame, imgsz=640, device='0', half=True, verbose=False)
+result = model.predict(source=frame, imgsz=640, device='0', half=True, verbose=False)[0]
 
-    # ── Inference ─────────────────────────────────────────────────────────────
-    rospy.loginfo("Running inference...")
-    result = model.predict(source=frame, imgsz=640, device="0", half=True, verbose=False)[0]
+masks, labels = [], []
+if result.masks is not None:
+    h, w = frame.shape[:2]
+    cls_ids = result.boxes.cls.tolist() if result.boxes is not None else []
+    names = result.names
+    for i, poly in enumerate(result.masks.xy):
+        binary = np.zeros((h, w), dtype=np.uint8)
+        pts = np.asarray(poly, dtype=np.int32).reshape(-1, 1, 2)
+        if len(pts) >= 3:
+            cv2.fillPoly(binary, [pts], 1)
+        masks.append(binary)
+        label = names[int(cls_ids[i])] if i < len(cls_ids) else None
+        labels.append(label)
 
-    # ── Extract and save masks ────────────────────────────────────────────────
-    masks, labels = _masks_from_result(result, frame.shape)
-    rospy.loginfo(f"Detected {len(masks)} object(s)")
-
-    out_dir = Path("/tmp/drone_pipeline_masks")
-    out_dir.mkdir(exist_ok=True)
-    stamp = int(time.time())
-    if masks:
-        np.savez_compressed(
-            out_dir / f"masks_{stamp}.npz",
-            binary_masks=np.stack(masks, axis=0),
+yolo_img = result.plot()
+cv2.imwrite({repr(str(tmp / 'yolo_output.jpg'))}, yolo_img)
+np.save({repr(str(tmp / 'mask_count.npy'))}, np.array([len(masks)]))
+if masks:
+    np.savez_compressed({repr(str(tmp / 'masks.npz'))}, **{{f'm{{i}}': m for i, m in enumerate(masks)}})
+with open({repr(str(tmp / 'labels.json'))}, 'w') as f:
+    json.dump(labels, f)
+print(f"YOLO: {{len(masks)}} detection(s)")
+"""
+        proc = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True, timeout=300,
         )
-    (out_dir / f"masks_{stamp}.json").write_text(
-        json.dumps({"timestamp": stamp, "num_masks": len(masks), "image_shape": list(frame.shape), "gps": gps}, indent=2)
-    )
-    rospy.loginfo(f"Masks saved to {out_dir}")
+        if proc.stdout:
+            print(proc.stdout.strip())
+        if proc.returncode != 0:
+            print(proc.stderr)
+            raise RuntimeError(f"YOLO subprocess failed (exit {proc.returncode})")
 
-    # ── Project masks → GPS waypoints ─────────────────────────────────────────
-    gps_waypoints = masks_to_gps(masks, frame, gps, attitude, labels=labels)
-    valid_wps = [(lat, lon, label) for lat, lon, label in gps_waypoints if lat is not None]
-    rospy.loginfo(f"Valid GPS waypoints ({len(valid_wps)}): {valid_wps}")
+        mask_count = int(np.load(str(tmp / "mask_count.npy"))[0])
+        masks = []
+        if mask_count > 0:
+            data = np.load(str(tmp / "masks.npz"))
+            masks = [data[f"m{i}"] for i in range(mask_count)]
+        with open(str(tmp / "labels.json")) as f:
+            labels = json.load(f)
+        yolo_img = cv2.imread(str(tmp / "yolo_output.jpg"))
 
-    # ── HVRP solver ───────────────────────────────────────────────────────────
-    drone_wps, spot_wps = solve_hvrp(valid_wps)
-    rospy.loginfo(f"Spot waypoints: {spot_wps}")
-    rospy.loginfo(f"Drone waypoints: {drone_wps}")
-
-    # ── Send spot waypoints ───────────────────────────────────────────────────
-    proto_sender(spot_wps)
-    rospy.loginfo("Spot waypoints sent.")
+    return masks, labels, yolo_img
 
 
-def _save_waypoints(waypoints: list[tuple[float, float, float]], path: Path) -> None:
-    path.write_text("\n".join(f"{lat},{lon},{yaw}" for lat, lon, yaw in waypoints) + "\n")
-    print(f"  {path.name}: {len(waypoints)} waypoint(s)")
-
-
-def run_debug(
-    image_path: str,
-    gps: list[float] = [30.3926, -97.7285, 50.0],   # lat, lon, alt_m
-    attitude: list[float] = [1.0, 0.0, 0.0, 0.0],   # w, x, y, z (level flight)
-    out_dir: str = "/tmp/drone_debug",
-):
-    from ultralytics import YOLO
-
-    frame = cv2.imread(image_path)
-    if frame is None:
-        raise FileNotFoundError(f"Could not load image: {image_path}")
-    print(f"Image: {image_path}  shape={frame.shape}  GPS={gps}  attitude={attitude}")
-
-    _patch_torchvision_nms_for_jetson()
-    print(f"Loading model: {_ENGINE_PATH}")
-    model = YOLO(str(_ENGINE_PATH), task="segment")
-
-    for _ in range(3):
-        model.predict(source=frame, imgsz=640, device="0", half=True, verbose=False)
-
-    print("Running inference...")
-    result = model.predict(source=frame, imgsz=640, device="0", half=True, verbose=False)[0]
-
-    masks, labels = _masks_from_result(result, frame.shape)
+def _process_and_save(
+    frame,
+    gps: list[float],
+    attitude: list[float],
+) -> tuple[list, list]:
+    """Run inference, save outputs to _DEBUG_DIR, solve HVRP, return (drone_wps, spot_wps)."""
+    masks, labels, yolo_img = _run_yolo_subprocess(frame)
     print(f"Detected {len(masks)} object(s)")
 
-    out = Path(out_dir)
+    out = _DEBUG_DIR
     out.mkdir(parents=True, exist_ok=True)
 
-    yolo_img = result.plot()
     cv2.imwrite(str(out / "yolo_output.jpg"), yolo_img)
     print(f"  yolo_output.jpg: {len(masks)} detection(s)")
 
@@ -765,10 +769,322 @@ def run_debug(
     print(f"  projected_waypoints.txt: {len(valid_wps)} waypoint(s)")
 
     drone_wps, spot_wps = solve_hvrp(valid_wps)
-
     _save_waypoints(drone_wps, out / "drone_waypoints.txt")
     _save_waypoints(spot_wps,  out / "spot_waypoints.txt")
+
+    w, x, y, z = attitude
+    yaw_rad = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
+    uav_heading = math.pi / 2 - yaw_rad
+
+    img_corners = _image_corners_to_gps(frame.shape, gps, attitude)
+    print(f"  Image corners (TL TR BR BL): {img_corners}")
+
+    save_satellite_waypoint_map(
+        drone_wps, spot_wps, out / "satellite_map.png",
+        projected_waypoints=[(la, lo, lbl) for la, lo, lbl in valid_wps],
+        drone_pos=(gps[0], gps[1], uav_heading),
+        image_corners=img_corners,
+    )
     print(f"Saved to {out}/")
+    return drone_wps, spot_wps
+
+
+def run_pipeline():
+    import rospy
+    from cv_bridge import CvBridge
+
+    rospy.init_node("drone_pipeline", anonymous=True)
+    rospy.loginfo("Grabbing frame, GPS, and attitude from ROS topics...")
+    bridge = CvBridge()
+    frame = _grab_frame(bridge)
+    gps   = _grab_gps()
+    attitude = _grab_attitude()
+    rospy.loginfo(f"Frame shape: {frame.shape}  GPS: {gps}")
+
+    drone_wps, spot_wps = _process_and_save(frame, gps, attitude)
+
+    proto_sender(spot_wps)
+    rospy.loginfo("Spot waypoints sent.")
+
+
+def _save_waypoints(waypoints: list[tuple[float, float, float]], path: Path) -> None:
+    path.write_text("\n".join(f"{lat},{lon},{yaw}" for lat, lon, yaw in waypoints) + "\n")
+    print(f"  {path.name}: {len(waypoints)} waypoint(s)")
+
+
+def save_satellite_waypoint_map(
+    aerial_waypoints: list[tuple[float, float, float]],
+    ground_waypoints: list[tuple[float, float, float]],
+    out_path: Path,
+    projected_waypoints: list[tuple[float, float, str]] | None = None,
+    drone_pos: tuple[float, float, float] | None = None,  # (lat, lon, heading_rad) 0=N CW
+    image_corners: list[tuple[float, float] | None] | None = None,  # TL TR BR BL
+    zoom: int = 18,
+    pad_tiles: int = 1,
+    arrow_m: float = 4.0,
+) -> None:
+    """Fetch a satellite basemap and plot aerial/ground waypoints onto it."""
+    import io
+    import requests
+    import matplotlib.pyplot as plt
+    from PIL import Image as _PILImage
+
+    # Guard: if the live drone position is >100 m from the hardcoded depot the
+    # depot constants are stale (e.g. testing in lab vs. field site) and the map
+    # would span 8+ miles of useless tiles.
+    if drone_pos is not None:
+        def _haversine_m(lat1, lon1, lat2, lon2):
+            dlat = math.radians(lat2 - lat1)
+            dlon = math.radians(lon2 - lon1)
+            a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2) ** 2
+            return 2 * EARTH_RADIUS_METERS * math.asin(math.sqrt(a))
+
+        dist_aerial = _haversine_m(drone_pos[0], drone_pos[1], AERIAL_DEPOT[0], AERIAL_DEPOT[1])
+        dist_ground = _haversine_m(drone_pos[0], drone_pos[1], GROUND_DEPOT[0], GROUND_DEPOT[1])
+        if dist_aerial > 100 or dist_ground > 100:
+            print(
+                f"  Skipping satellite map: live GPS is {dist_aerial:.0f} m from aerial depot "
+                f"and {dist_ground:.0f} m from ground depot (hardcoded depots likely out of date)."
+            )
+            return
+
+    TILE_SIZE  = 256
+    DRONE_CLR  = "royalblue"
+    SPOT_CLR   = "limegreen"
+    PROJ_CLR   = "orange"
+    UAV_CLR    = "magenta"
+
+    def _ll_to_tile(lat, lon):
+        n = 2 ** zoom
+        tx = int((lon + 180) / 360 * n)
+        lat_r = math.radians(lat)
+        ty = int((1 - math.log(math.tan(lat_r) + 1 / math.cos(lat_r)) / math.pi) / 2 * n)
+        return tx, ty
+
+    def _ll_to_px(lat, lon, tx_min, ty_min):
+        n = 2 ** zoom
+        px = ((lon + 180) / 360 * n - tx_min) * TILE_SIZE
+        lat_r = math.radians(lat)
+        py = ((1 - math.log(math.tan(lat_r) + 1 / math.cos(lat_r)) / math.pi) / 2 * n - ty_min) * TILE_SIZE
+        return px, py
+
+    def _yaw_tip(lat, lon, yaw_rad, metres):
+        d_n = metres * -math.cos(yaw_rad)
+        d_e = metres *  math.sin(yaw_rad)
+        return (lat  + math.degrees(d_n / EARTH_RADIUS_METERS),
+                lon  + math.degrees(d_e / (EARTH_RADIUS_METERS * math.cos(math.radians(lat)))))
+
+    all_pts = ([(la, lo) for la, lo, _ in aerial_waypoints]
+             + [(la, lo) for la, lo, _ in ground_waypoints]
+             + [(la, lo) for la, lo, _ in (projected_waypoints or [])])
+    all_pts += [AERIAL_DEPOT, GROUND_DEPOT]
+    if drone_pos is not None:
+        all_pts.append((drone_pos[0], drone_pos[1]))
+    if image_corners:
+        all_pts += [pt for pt in image_corners if pt is not None]
+
+    all_lats = [p[0] for p in all_pts]
+    all_lons = [p[1] for p in all_pts]
+
+    txs = [_ll_to_tile(la, lo)[0] for la, lo in zip(all_lats, all_lons)]
+    tys = [_ll_to_tile(la, lo)[1] for la, lo in zip(all_lats, all_lons)]
+    tx_min, tx_max = min(txs) - pad_tiles, max(txs) + pad_tiles
+    ty_min, ty_max = min(tys) - pad_tiles, max(tys) + pad_tiles
+
+    cols = tx_max - tx_min + 1
+    rows = ty_max - ty_min + 1
+    canvas = _PILImage.new("RGB", (cols * TILE_SIZE, rows * TILE_SIZE))
+    print(f"  Fetching {cols * rows} satellite tile(s) at zoom {zoom}…")
+    for ty in range(ty_min, ty_max + 1):
+        for tx in range(tx_min, tx_max + 1):
+            url = (f"https://server.arcgisonline.com/ArcGIS/rest/services"
+                   f"/World_Imagery/MapServer/tile/{zoom}/{ty}/{tx}")
+            try:
+                resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                resp.raise_for_status()
+                tile = _PILImage.open(io.BytesIO(resp.content)).convert("RGB")
+            except Exception as exc:
+                print(f"    tile {tx},{ty} failed: {exc}")
+                tile = _PILImage.new("RGB", (TILE_SIZE, TILE_SIZE), (60, 60, 60))
+            canvas.paste(tile, ((tx - tx_min) * TILE_SIZE, (ty - ty_min) * TILE_SIZE))
+
+    img = np.array(canvas)
+    del canvas  # free PIL copy before matplotlib allocates
+    fig, ax = plt.subplots(figsize=(8, 8), dpi=100)
+    ax.imshow(img, origin="upper")
+    del img  # matplotlib has its own copy now
+    ax.set_axis_off()
+
+    def _draw_vehicle(wps, color, label):
+        if not wps:
+            return
+        pxs = [_ll_to_px(la, lo, tx_min, ty_min)[0] for la, lo, _ in wps]
+        pys = [_ll_to_px(la, lo, tx_min, ty_min)[1] for la, lo, _ in wps]
+        ax.plot(pxs, pys, color=color, linewidth=1.2, linestyle="--", alpha=0.6)
+        for i, ((la, lo, yaw), px, py) in enumerate(zip(wps, pxs, pys), start=1):
+            ax.scatter(px, py, color=color, s=20, zorder=4,
+                       edgecolors="white", linewidths=0.5)
+            ax.annotate(str(i), (px, py), textcoords="offset points", xytext=(3, 2),
+                        fontsize=6, fontweight="bold", color="white",
+                        bbox=dict(boxstyle="round,pad=0.12", facecolor=color,
+                                  edgecolor="none", alpha=0.85))
+            tip = _yaw_tip(la, lo, yaw, arrow_m)
+            tip_px, tip_py = _ll_to_px(*tip, tx_min, ty_min)
+            ax.annotate("", xy=(tip_px, tip_py), xytext=(px, py),
+                        arrowprops=dict(arrowstyle="-|>", color=color,
+                                        lw=1.2, mutation_scale=7))
+        ax.scatter([], [], color=color, s=20, edgecolors="white",
+                   linewidths=0.5, label=f"{label} ({len(wps)})")
+
+    def _draw_projected(wps, color, label):
+        if not wps:
+            return
+        for i, (la, lo, cls) in enumerate(wps, start=1):
+            px, py = _ll_to_px(la, lo, tx_min, ty_min)
+            ax.scatter(px, py, color=color, s=50, zorder=5, marker="*",
+                       edgecolors="white", linewidths=0.5)
+            ax.annotate(f"{i}" if not cls else f"{i}:{cls}", (px, py),
+                        textcoords="offset points", xytext=(4, 3),
+                        fontsize=6, fontweight="bold", color="white",
+                        bbox=dict(boxstyle="round,pad=0.12", facecolor=color,
+                                  edgecolor="none", alpha=0.85))
+        ax.scatter([], [], color=color, s=50, marker="*", edgecolors="white",
+                   linewidths=0.5, label=f"{label} ({len(wps)})")
+
+    # Depot marker
+    dep_px, dep_py = _ll_to_px(AERIAL_DEPOT[0], AERIAL_DEPOT[1], tx_min, ty_min)
+    ax.scatter(dep_px, dep_py, color="white", s=80, zorder=6, marker="D",
+               edgecolors="black", linewidths=0.8)
+    ax.annotate("Depot", (dep_px, dep_py), textcoords="offset points", xytext=(5, 4),
+                fontsize=7, fontweight="bold", color="white",
+                bbox=dict(boxstyle="round,pad=0.15", facecolor="black",
+                          edgecolor="none", alpha=0.7))
+    ax.scatter([], [], color="white", s=80, marker="D", edgecolors="black",
+               linewidths=0.8, label="Depot")
+
+    _draw_vehicle(aerial_waypoints, DRONE_CLR, "Drone")
+    _draw_vehicle(ground_waypoints, SPOT_CLR,  "Spot")
+    _draw_projected(projected_waypoints or [], PROJ_CLR, "Projected targets")
+
+    # UAV position + heading arrow
+    if drone_pos is not None:
+        dp_lat, dp_lon, dp_hdg = drone_pos
+        dp_px, dp_py = _ll_to_px(dp_lat, dp_lon, tx_min, ty_min)
+        # heading: 0=north CW → d_n = cos(hdg), d_e = sin(hdg)
+        tip_lat = dp_lat + math.degrees(arrow_m * 15 * math.cos(dp_hdg) / EARTH_RADIUS_METERS)
+        tip_lon = dp_lon + math.degrees(
+            arrow_m * 15 * math.sin(dp_hdg)
+            / (EARTH_RADIUS_METERS * math.cos(math.radians(dp_lat)))
+        )
+        tip_px, tip_py = _ll_to_px(tip_lat, tip_lon, tx_min, ty_min)
+        ax.scatter(dp_px, dp_py, color=UAV_CLR, s=120, zorder=7, marker="^",
+                   edgecolors="white", linewidths=0.8)
+        ax.annotate("", xy=(tip_px, tip_py), xytext=(dp_px, dp_py),
+                    arrowprops=dict(arrowstyle="-|>", color=UAV_CLR,
+                                    lw=2.0, mutation_scale=12))
+        ax.annotate("UAV", (dp_px, dp_py), textcoords="offset points", xytext=(5, 4),
+                    fontsize=7, fontweight="bold", color="white",
+                    bbox=dict(boxstyle="round,pad=0.15", facecolor=UAV_CLR,
+                              edgecolor="none", alpha=0.85))
+        ax.scatter([], [], color=UAV_CLR, s=120, marker="^", edgecolors="white",
+                   linewidths=0.8, label="UAV position")
+
+    # Image footprint corners: TL TR BR BL
+    if image_corners:
+        CORNER_CLR = "yellow"
+        CORNER_LABELS = ["TL", "TR", "BR", "BL"]
+        valid_corners = [(i, pt) for i, pt in enumerate(image_corners) if pt is not None]
+        if valid_corners:
+            # Close the polygon by repeating the first valid corner
+            ring_idxs = [i for i, _ in valid_corners]
+            ring_pts  = [pt for _, pt in valid_corners]
+            # Draw edges in order, skipping None corners
+            for k in range(len(ring_pts)):
+                la0, lo0 = ring_pts[k]
+                la1, lo1 = ring_pts[(k + 1) % len(ring_pts)]
+                px0, py0 = _ll_to_px(la0, lo0, tx_min, ty_min)
+                px1, py1 = _ll_to_px(la1, lo1, tx_min, ty_min)
+                ax.plot([px0, px1], [py0, py1], color=CORNER_CLR,
+                        linewidth=1.5, linestyle="-", alpha=0.85, zorder=5)
+            for i, (la, lo) in zip(ring_idxs, ring_pts):
+                px, py = _ll_to_px(la, lo, tx_min, ty_min)
+                ax.scatter(px, py, color=CORNER_CLR, s=60, zorder=6,
+                           marker="s", edgecolors="black", linewidths=0.6)
+                ax.annotate(CORNER_LABELS[i], (px, py),
+                            textcoords="offset points", xytext=(4, 3),
+                            fontsize=7, fontweight="bold", color="black",
+                            bbox=dict(boxstyle="round,pad=0.12", facecolor=CORNER_CLR,
+                                      edgecolor="none", alpha=0.9))
+            ax.scatter([], [], color=CORNER_CLR, s=60, marker="s",
+                       edgecolors="black", linewidths=0.6, label="Image corners")
+
+    # Zoom to fit all waypoints with 20 % margin
+    all_pxs = [_ll_to_px(la, lo, tx_min, ty_min)[0] for la, lo in zip(all_lats, all_lons)]
+    all_pys = [_ll_to_px(la, lo, tx_min, ty_min)[1] for la, lo in zip(all_lats, all_lons)]
+    cx = (min(all_pxs) + max(all_pxs)) / 2
+    cy = (min(all_pys) + max(all_pys)) / 2
+    span = max(max(all_pxs) - min(all_pxs), max(all_pys) - min(all_pys))
+    half = max(span / 2 * 1.25, TILE_SIZE * 0.75)
+    ax.set_xlim(cx - half, cx + half)
+    ax.set_ylim(cy + half, cy - half)
+
+    ax.legend(loc="upper right", fontsize=8,
+              facecolor="#222", edgecolor="none", labelcolor="white")
+    ax.set_title("Observation Waypoints — Drone & Spot", color="white",
+                 fontsize=11, pad=6)
+    fig.patch.set_facecolor("#111")
+    plt.tight_layout(pad=0.4)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(str(out_path), dpi=100, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  satellite_map.png: {out_path}")
+
+
+def _image_corners_to_gps(
+    frame_shape,
+    gps_pos: list[float],
+    q_wxyz,
+    camera_angle: float = 45.0,
+) -> list[tuple[float, float] | None]:
+    """Return GPS coords for the 4 image corners: TL, TR, BR, BL."""
+    fx, fy = 1217.642102546154, 1205.813741470882
+    cx_px, cy_px = 539.4282560125398, 352.5539369151344
+
+    theta = math.radians(camera_angle)
+    cam_x_in_body = np.array([0.0, -1.0, 0.0])
+    cam_z_in_body = np.array([math.cos(theta), 0.0, -math.sin(theta)])
+    cam_y_in_body = np.cross(cam_z_in_body, cam_x_in_body)
+    R_cam_to_body = np.column_stack([cam_x_in_body, cam_y_in_body, cam_z_in_body])
+
+    h, w = frame_shape[:2]
+    corners_uv = [(0, 0), (w - 1, 0), (w - 1, h - 1), (0, h - 1)]  # TL TR BR BL
+
+    result = []
+    for u, v in corners_uv:
+        try:
+            lat, lon = _pixel_to_gps(
+                float(u), float(v), gps_pos, np.asarray(q_wxyz, dtype=float),
+                fx, fy, cx_px, cy_px, R_cam_to_body,
+            )
+            result.append((lat, lon))
+        except ValueError:
+            result.append(None)
+    return result
+
+
+_DEBUG_DIR = _SCRIPT_DIR / "debug"
+
+
+def run_debug(
+    image_path: str,
+    gps: list[float] = [30.3926, -97.7285, 50.0],   # lat, lon, alt_m
+    attitude: list[float] = [1.0, 0.0, 0.0, 0.0],   # w, x, y, z (level flight)
+):
+    frame = cv2.imread(image_path)
+    if frame is None:
+        raise FileNotFoundError(f"Could not load image: {image_path}")
+    print(f"Image: {image_path}  shape={frame.shape}  GPS={gps}  attitude={attitude}")
+    _process_and_save(frame, gps, attitude)
 
 
 if __name__ == "__main__":
@@ -780,12 +1096,11 @@ if __name__ == "__main__":
                         default=[30.3926, -97.7285, 50.0])
     parser.add_argument("--attitude", nargs=4, type=float, metavar=("W", "X", "Y", "Z"),
                         default=[1.0, 0.0, 0.0, 0.0])
-    parser.add_argument("--out-dir", default="/tmp/drone_debug")
     args = parser.parse_args()
 
     if args.debug:
         if args.image is None:
             parser.error("--image is required with --debug")
-        run_debug(args.image, args.gps, args.attitude, args.out_dir)
+        run_debug(args.image, args.gps, args.attitude)
     else:
         run_pipeline()
