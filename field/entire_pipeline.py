@@ -314,8 +314,12 @@ def _extract_area_route(solution, routing, manager, all_nodes: list[dict]):
 # ── Observation vectors ───────────────────────────────────────────────────────
 
 def _compute_observation_vectors(stops: list[dict],
-                                 targets_projected: list[dict]) -> list[dict]:
-    """Yaw: 0 = south, increases CCW. Formula: atan2(dx, -dy), candidate→target."""
+                                 targets_projected: list[dict],
+                                 north_zero_cw: bool = False) -> list[dict]:
+    """Yaw convention depends on north_zero_cw:
+      False (default): 0 = south, increases CCW. Formula: atan2(dx, -dy).
+      True:            0 = north, increases CW.  Formula: atan2(dx,  dy).
+    dx/dy are Web Mercator offsets (x=East, y=North), candidate→target."""
     vectors = []
     for stop in stops:
         if "target_idx" not in stop:
@@ -323,7 +327,7 @@ def _compute_observation_vectors(stops: list[dict],
         tgt = targets_projected[stop["target_idx"]]
         dx  = tgt["x"] - stop["x"]
         dy  = tgt["y"] - stop["y"]
-        yaw = math.atan2(dx, -dy)
+        yaw = math.atan2(dx, dy) if north_zero_cw else math.atan2(dx, -dy)
         vectors.append({
             "candidate": stop["name"],
             "lat":       stop["lat"],
@@ -438,7 +442,7 @@ def solve_hvrp(
         g_solution = g_routing.SolveWithParameters(g_params)
         if g_solution is not None:
             ground_stops, _ = _extract_area_route(g_solution, g_routing, g_manager, g_all_nodes)
-            ground_obs_vectors = _compute_observation_vectors(ground_stops, ground_targets_proj)
+            ground_obs_vectors = _compute_observation_vectors(ground_stops, ground_targets_proj, north_zero_cw=True)
 
     # Aerial: fixed-sequence ring orbit
     aerial_targets_proj = [project_node(t) for t in aerial_targets]
@@ -447,7 +451,7 @@ def solve_hvrp(
     )
     aerial_obs_vectors = _compute_observation_vectors(aerial_stops, aerial_targets_proj)
 
-    aerial_waypoints = [(v["lat"], v["lon"], v["yaw_rad"]) for v in aerial_obs_vectors]
+    aerial_waypoints = [(v["lat"], v["lon"], AIR_RADIUS_M, v["yaw_rad"]) for v in aerial_obs_vectors]
     ground_waypoints = [(v["lat"], v["lon"], v["yaw_rad"]) for v in ground_obs_vectors]
 
     return aerial_waypoints, ground_waypoints
@@ -806,8 +810,8 @@ def run_pipeline():
     rospy.loginfo("Spot waypoints sent.")
 
 
-def _save_waypoints(waypoints: list[tuple[float, float, float]], path: Path) -> None:
-    path.write_text("\n".join(f"{lat},{lon},{yaw}" for lat, lon, yaw in waypoints) + "\n")
+def _save_waypoints(waypoints: list[tuple], path: Path) -> None:
+    path.write_text("\n".join(",".join(str(v) for v in wp) for wp in waypoints) + "\n")
     print(f"  {path.name}: {len(waypoints)} waypoint(s)")
 
 
@@ -873,8 +877,8 @@ def save_satellite_waypoint_map(
         return (lat  + math.degrees(d_n / EARTH_RADIUS_METERS),
                 lon  + math.degrees(d_e / (EARTH_RADIUS_METERS * math.cos(math.radians(lat)))))
 
-    all_pts = ([(la, lo) for la, lo, _ in aerial_waypoints]
-             + [(la, lo) for la, lo, _ in ground_waypoints]
+    all_pts = ([(wp[0], wp[1]) for wp in aerial_waypoints]
+             + [(wp[0], wp[1]) for wp in ground_waypoints]
              + [(la, lo) for la, lo, _ in (projected_waypoints or [])])
     all_pts += [AERIAL_DEPOT, GROUND_DEPOT]
     if drone_pos is not None:
@@ -917,10 +921,11 @@ def save_satellite_waypoint_map(
     def _draw_vehicle(wps, color, label):
         if not wps:
             return
-        pxs = [_ll_to_px(la, lo, tx_min, ty_min)[0] for la, lo, _ in wps]
-        pys = [_ll_to_px(la, lo, tx_min, ty_min)[1] for la, lo, _ in wps]
+        pxs = [_ll_to_px(wp[0], wp[1], tx_min, ty_min)[0] for wp in wps]
+        pys = [_ll_to_px(wp[0], wp[1], tx_min, ty_min)[1] for wp in wps]
         ax.plot(pxs, pys, color=color, linewidth=1.2, linestyle="--", alpha=0.6)
-        for i, ((la, lo, yaw), px, py) in enumerate(zip(wps, pxs, pys), start=1):
+        for i, (wp, px, py) in enumerate(zip(wps, pxs, pys), start=1):
+            la, lo, yaw = wp[0], wp[1], wp[-1]
             ax.scatter(px, py, color=color, s=20, zorder=4,
                        edgecolors="white", linewidths=0.5)
             ax.annotate(str(i), (px, py), textcoords="offset points", xytext=(3, 2),
@@ -1083,7 +1088,9 @@ def run_debug(
     if frame is None:
         raise FileNotFoundError(f"Could not load image: {image_path}")
     print(f"Image: {image_path}  shape={frame.shape}  GPS={gps}  attitude={attitude}")
-    _process_and_save(frame, gps, attitude)
+    _, spot_wps = _process_and_save(frame, gps, attitude)
+    proto_sender(spot_wps)
+    print("Spot waypoints sent.")
 
 
 if __name__ == "__main__":
