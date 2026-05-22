@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import sys
 import time
+from datetime import datetime
 import xml.etree.ElementTree as ET
 from functools import partial
 from pathlib import Path
@@ -24,10 +25,12 @@ import waypoints_pb2
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _ENGINE_PATH = _SCRIPT_DIR.parent / "yolo_stuff" / "best-v2-shuffled.engine"
 
+LOG_NAME = "TESTING1"
+
 
 # ── HVRP configuration ────────────────────────────────────────────────────────
 
-KML_PATH     = Path(__file__).parent / "Co-GLANCE-2.kml"
+KML_PATH     = Path(__file__).parent / "big.kml"
 AERIAL_DEPOT = (30.3930908, -97.7285992)  # (lat, lon)
 GROUND_DEPOT = (30.3930908, -97.7285992)  # (lat, lon)
 
@@ -772,8 +775,12 @@ def _process_and_save(
     print(f"  projected_waypoints.txt: {len(valid_wps)} waypoint(s)")
 
     drone_wps, spot_wps = solve_hvrp(valid_wps)
+    _WAYPOINTS_DIR = _SCRIPT_DIR / "waypoints"
+    _WAYPOINTS_DIR.mkdir(parents=True, exist_ok=True)
     _save_waypoints(drone_wps, out / "drone_waypoints.txt")
     _save_waypoints(spot_wps,  out / "spot_waypoints.txt")
+    _save_waypoints(drone_wps, _WAYPOINTS_DIR / "drone_waypoints.txt")
+    _save_waypoints(spot_wps,  _WAYPOINTS_DIR / "spot_waypoints.txt")
 
     w, x, y, z = attitude
     yaw_rad = math.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
@@ -871,8 +878,8 @@ def save_satellite_waypoint_map(
         py = ((1 - math.log(math.tan(lat_r) + 1 / math.cos(lat_r)) / math.pi) / 2 * n - ty_min) * TILE_SIZE
         return px, py
 
-    def _yaw_tip(lat, lon, yaw_rad, metres):
-        d_n = metres * -math.cos(yaw_rad)
+    def _yaw_tip(lat, lon, yaw_rad, metres, north_zero_cw=False):
+        d_n = metres *  math.cos(yaw_rad) if north_zero_cw else metres * -math.cos(yaw_rad)
         d_e = metres *  math.sin(yaw_rad)
         return (lat  + math.degrees(d_n / EARTH_RADIUS_METERS),
                 lon  + math.degrees(d_e / (EARTH_RADIUS_METERS * math.cos(math.radians(lat)))))
@@ -918,7 +925,7 @@ def save_satellite_waypoint_map(
     del img  # matplotlib has its own copy now
     ax.set_axis_off()
 
-    def _draw_vehicle(wps, color, label):
+    def _draw_vehicle(wps, color, label, north_zero_cw=False):
         if not wps:
             return
         pxs = [_ll_to_px(wp[0], wp[1], tx_min, ty_min)[0] for wp in wps]
@@ -932,7 +939,7 @@ def save_satellite_waypoint_map(
                         fontsize=6, fontweight="bold", color="white",
                         bbox=dict(boxstyle="round,pad=0.12", facecolor=color,
                                   edgecolor="none", alpha=0.85))
-            tip = _yaw_tip(la, lo, yaw, arrow_m)
+            tip = _yaw_tip(la, lo, yaw, arrow_m, north_zero_cw=north_zero_cw)
             tip_px, tip_py = _ll_to_px(*tip, tx_min, ty_min)
             ax.annotate("", xy=(tip_px, tip_py), xytext=(px, py),
                         arrowprops=dict(arrowstyle="-|>", color=color,
@@ -967,7 +974,7 @@ def save_satellite_waypoint_map(
                linewidths=0.8, label="Depot")
 
     _draw_vehicle(aerial_waypoints, DRONE_CLR, "Drone")
-    _draw_vehicle(ground_waypoints, SPOT_CLR,  "Spot")
+    _draw_vehicle(ground_waypoints, SPOT_CLR,  "Spot", north_zero_cw=True)
     _draw_projected(projected_waypoints or [], PROJ_CLR, "Projected targets")
 
     # UAV position + heading arrow
@@ -1076,7 +1083,7 @@ def _image_corners_to_gps(
     return result
 
 
-_DEBUG_DIR = _SCRIPT_DIR / "debug"
+_DEBUG_DIR = Path("/media/drone/extreme") / LOG_NAME
 
 
 def run_debug(

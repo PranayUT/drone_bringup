@@ -1,206 +1,189 @@
 #!/usr/bin/env python3
 """
-Active sensing: when the drone detects a person, send a priority waypoint to Spot.
+Read drone position from the DJI SDK, convert attitude to yaw, and send a
+WaypointList protobuf to Spot over TCP. Spot handles mission stack priority.
 
-Spot pushes each incoming WaypointList to the top of its mission stack; this node
-only sends the waypoint (lat, lon, yaw). GPS and attitude come from the DJI SDK;
-person location is projected from YOLO mask polygons published on /yolo/masks_json.
+Requires dji_sdk_node (mission bringup) publishing:
+  /dji_sdk/gps_position
+  /dji_sdk/attitude
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import math
+import socket
 import sys
 import time
 from pathlib import Path
 
-import cv2
-import numpy as np
-import pymap3d
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "protobuf"))
+import waypoints_pb2
 
-# Protobuf + shared projection / sender from the field pipeline
-_FIELD_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(_FIELD_DIR.parent / "protobuf"))
-sys.path.insert(0, str(_FIELD_DIR))
-
-import waypoints_pb2  # noqa: E402
-from entire_pipeline import masks_to_gps, proto_sender  # noqa: E402
-
-PERSON_LABELS = frozenset({"person", "people", "human"})
-DEFAULT_MASKS_TOPIC = "/yolo/masks_json"
 DEFAULT_SPOT_ADDR = ("192.168.2.26", 9000)
-DEFAULT_COOLDOWN_SEC = 15.0
-DEFAULT_MIN_CONFIDENCE = 0.5
+DEFAULT_TELEMETRY_WAIT_SEC = 60.0
+GPS_TOPIC = "/dji_sdk/gps_position"
+ATTITUDE_TOPIC = "/dji_sdk/attitude"
 
 
-def _grab_gps(timeout: float = 10.0) -> list[float]:
-    from sensor_msgs.msg import NavSatFix
-    import rospy
+class DroneTelemetry:
+    """Cache latest DJI GPS + attitude from ROS subscribers."""
 
-    msg = rospy.wait_for_message("/dji_sdk/gps_position", NavSatFix, timeout=timeout)
-    return [msg.latitude, msg.longitude, msg.altitude]
+    def __init__(self) -> None:
+        self._lat: float | None = None
+        self._lon: float | None = None
+        self._alt: float | None = None
+        self._attitude: tuple[float, float, float, float] | None = None
 
+    @property
+    def ready(self) -> bool:
+        return self._lat is not None and self._attitude is not None
 
-def _grab_attitude(timeout: float = 10.0) -> list[float]:
-    from geometry_msgs.msg import QuaternionStamped
-    import rospy
-
-    msg = rospy.wait_for_message("/dji_sdk/attitude", QuaternionStamped, timeout=timeout)
-    q = msg.quaternion
-    return [q.w, q.x, q.y, q.z]
-
-
-def _mask_from_polygon(polygon: list, h: int, w: int) -> np.ndarray:
-    binary = np.zeros((h, w), dtype=np.uint8)
-    pts = np.asarray(polygon, dtype=np.int32).reshape(-1, 1, 2)
-    if len(pts) >= 3:
-        cv2.fillPoly(binary, [pts], 1)
-    return binary.astype(bool)
-
-
-def _yaw_approach(drone_lat: float, drone_lon: float, target_lat: float, target_lon: float) -> float:
-    """Spot yaw convention (same as entire_pipeline observation vectors)."""
-    e, n, _ = pymap3d.geodetic2enu(target_lat, target_lon, 0.0, drone_lat, drone_lon, 0.0)
-    return math.atan2(e, -n)
-
-
-def _pick_person(instances: list[dict], min_confidence: float) -> dict | None:
-    persons = [
-        inst
-        for inst in instances
-        if inst.get("class_name", "").lower() in PERSON_LABELS
-        and float(inst.get("confidence", 0.0)) >= min_confidence
-    ]
-    if not persons:
-        return None
-    return max(persons, key=lambda inst: float(inst["confidence"]))
-
-
-def send_person_waypoint(
-    person: dict,
-    image_h: int,
-    image_w: int,
-    gps: list[float],
-    attitude: list[float],
-    spot_addr: tuple[str, int] = DEFAULT_SPOT_ADDR,
-) -> bool:
-    """Project person mask to GPS and send a single priority waypoint to Spot."""
-    polygon = person.get("polygon")
-    if not polygon:
-        return False
-
-    mask = _mask_from_polygon(polygon, image_h, image_w)
-    lat, lon, _ = masks_to_gps([mask], np.zeros((image_h, image_w, 3), np.uint8), gps, attitude, labels=["person"])[0]
-    if lat is None or lon is None:
-        return False
-
-    yaw = _yaw_approach(gps[0], gps[1], lat, lon)
-    proto_sender([(lat, lon, yaw)], spot_addr=spot_addr)
-    return True
-
-
-class ActiveSensingNode:
-    def __init__(
-        self,
-        masks_topic: str,
-        spot_addr: tuple[str, int],
-        cooldown_sec: float,
-        min_confidence: float,
-    ) -> None:
-        import rospy
-        from std_msgs.msg import String
-
-        self._cooldown_sec = cooldown_sec
-        self._min_confidence = min_confidence
-        self._spot_addr = spot_addr
-        self._last_sent = 0.0
-
-        rospy.Subscriber(masks_topic, String, self._on_masks, queue_size=1)
-        rospy.loginfo(
-            "active_sensing: listening on %s (person labels=%s, cooldown=%.1fs, spot=%s:%d)",
-            masks_topic,
-            sorted(PERSON_LABELS),
-            cooldown_sec,
-            spot_addr[0],
-            spot_addr[1],
-        )
-
-    def _on_masks(self, msg) -> None:
+    def wait_ready(self, timeout_sec: float) -> bool:
         import rospy
 
-        try:
-            data = json.loads(msg.data)
-        except json.JSONDecodeError as exc:
-            rospy.logwarn_throttle(30.0, "active_sensing: bad masks JSON: %s", exc)
-            return
+        deadline = time.monotonic() + timeout_sec
+        while not rospy.is_shutdown() and time.monotonic() < deadline:
+            if self.ready:
+                return True
+            rospy.sleep(0.1)
+        return self.ready
 
-        person = _pick_person(data.get("instances", []), self._min_confidence)
-        if person is None:
-            return
-
-        now = time.time()
-        if now - self._last_sent < self._cooldown_sec:
-            return
-
-        try:
-            gps = _grab_gps(timeout=2.0)
-            attitude = _grab_attitude(timeout=2.0)
-        except Exception as exc:
-            rospy.logwarn_throttle(10.0, "active_sensing: DJI telemetry unavailable: %s", exc)
-            return
-
-        h = int(data.get("image_height", 0))
-        w = int(data.get("image_width", 0))
-        if h <= 0 or w <= 0:
-            rospy.logwarn_throttle(30.0, "active_sensing: masks JSON missing image size")
-            return
-
-        if send_person_waypoint(person, h, w, gps, attitude, spot_addr=self._spot_addr):
-            self._last_sent = now
-            rospy.loginfo(
-                "active_sensing: sent priority person waypoint to Spot (conf=%.2f, class=%s)",
-                float(person["confidence"]),
-                person.get("class_name"),
+    def snapshot(self) -> tuple[float, float, float, float]:
+        if not self.ready:
+            raise RuntimeError(
+                f"DJI telemetry not ready — is dji_sdk_node running? "
+                f"Check: rostopic echo -n1 {GPS_TOPIC}"
             )
+        lat, lon = self._lat, self._lon
+        w, x, y, z = self._attitude
+        return lat, lon, attitude_to_yaw(w, x, y, z)
+
+    def start_subscribers(self) -> None:
+        from geometry_msgs.msg import QuaternionStamped
+        from sensor_msgs.msg import NavSatFix
+        import rospy
+
+        def _gps_cb(msg: NavSatFix) -> None:
+            self._lat = msg.latitude
+            self._lon = msg.longitude
+            self._alt = msg.altitude
+
+        def _att_cb(msg: QuaternionStamped) -> None:
+            q = msg.quaternion
+            self._attitude = (q.w, q.x, q.y, q.z)
+
+        rospy.Subscriber(GPS_TOPIC, NavSatFix, _gps_cb, queue_size=1)
+        rospy.Subscriber(ATTITUDE_TOPIC, QuaternionStamped, _att_cb, queue_size=1)
 
 
-def run_node(
-    masks_topic: str = DEFAULT_MASKS_TOPIC,
-    spot_host: str = DEFAULT_SPOT_ADDR[0],
-    spot_port: int = DEFAULT_SPOT_ADDR[1],
-    cooldown_sec: float = DEFAULT_COOLDOWN_SEC,
-    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+def attitude_to_yaw(w: float, x: float, y: float, z: float) -> float:
+    """Quaternion → yaw (same convention as entire_pipeline spot waypoints)."""
+    yaw_rad = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+    return math.pi / 2.0 - yaw_rad
+
+
+def send_drone_waypoint(
+    lat: float,
+    lon: float,
+    yaw: float,
+    spot_addr: tuple[str, int] = DEFAULT_SPOT_ADDR,
 ) -> None:
+    msg = waypoints_pb2.WaypointList()
+    msg.timestamp_ns = time.time_ns()
+    wp = msg.waypoints.add()
+    wp.lat, wp.lon, wp.yaw = lat, lon, yaw
+
+    payload = msg.SerializeToString()
+    with socket.create_connection(spot_addr, timeout=5.0) as sock:
+        sock.sendall(len(payload).to_bytes(4, "big") + payload)
+
+
+def _wait_for_telemetry(telemetry: DroneTelemetry, wait_sec: float) -> None:
+    import rospy
+
+    rospy.loginfo("Waiting for %s and %s (timeout %.0fs)...", GPS_TOPIC, ATTITUDE_TOPIC, wait_sec)
+    if telemetry.wait_ready(wait_sec):
+        lat, lon, yaw = telemetry.snapshot()
+        rospy.loginfo("Telemetry OK: lat=%.8f lon=%.8f yaw=%.4f", lat, lon, yaw)
+        return
+
+    rospy.logfatal(
+        "Timed out waiting for DJI telemetry. Start mission bringup first, e.g.\n"
+        "  roslaunch drone_bringup bringup_synchronized.launch ...\n"
+        "Then verify:\n"
+        "  rostopic echo -n1 %s\n"
+        "  rostopic echo -n1 %s",
+        GPS_TOPIC,
+        ATTITUDE_TOPIC,
+    )
+    sys.exit(1)
+
+
+def run_once(spot_addr: tuple[str, int], telemetry_wait_sec: float) -> None:
+    import rospy
+
+    rospy.init_node("active_sensing", anonymous=True)
+    telemetry = DroneTelemetry()
+    telemetry.start_subscribers()
+    _wait_for_telemetry(telemetry, telemetry_wait_sec)
+
+    lat, lon, yaw = telemetry.snapshot()
+    send_drone_waypoint(lat, lon, yaw, spot_addr=spot_addr)
+    print(f"Sent drone waypoint to Spot: lat={lat:.8f} lon={lon:.8f} yaw={yaw:.4f} rad")
+
+
+def run_stream(spot_addr: tuple[str, int], rate_hz: float, telemetry_wait_sec: float) -> None:
     import rospy
 
     rospy.init_node("active_sensing", anonymous=False)
-    ActiveSensingNode(
-        masks_topic=masks_topic,
-        spot_addr=(spot_host, spot_port),
-        cooldown_sec=cooldown_sec,
-        min_confidence=min_confidence,
-    )
-    rospy.spin()
+    telemetry = DroneTelemetry()
+    telemetry.start_subscribers()
+    _wait_for_telemetry(telemetry, telemetry_wait_sec)
+
+    period = 1.0 / rate_hz
+    rospy.loginfo("active_sensing: sending drone position to Spot at %.2f Hz", rate_hz)
+
+    while not rospy.is_shutdown():
+        t0 = time.monotonic()
+        try:
+            lat, lon, yaw = telemetry.snapshot()
+            send_drone_waypoint(lat, lon, yaw, spot_addr=spot_addr)
+            rospy.loginfo("Sent drone waypoint: lat=%.8f lon=%.8f yaw=%.4f", lat, lon, yaw)
+        except Exception as exc:
+            rospy.logwarn_throttle(10.0, "active_sensing: send failed: %s", exc)
+        elapsed = time.monotonic() - t0
+        sleep = max(0.0, period - elapsed)
+        if sleep:
+            rospy.sleep(sleep)
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Send priority Spot waypoints on person detection")
-    parser.add_argument("--masks-topic", default=DEFAULT_MASKS_TOPIC)
+    parser = argparse.ArgumentParser(
+        description="Send current drone GPS + yaw to Spot as a WaypointList protobuf",
+    )
     parser.add_argument("--spot-host", default=DEFAULT_SPOT_ADDR[0])
     parser.add_argument("--spot-port", type=int, default=DEFAULT_SPOT_ADDR[1])
-    parser.add_argument("--cooldown", type=float, default=DEFAULT_COOLDOWN_SEC,
-                        help="Minimum seconds between Spot sends (default: %.1f)" % DEFAULT_COOLDOWN_SEC)
-    parser.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE)
-    args = parser.parse_args()
-    run_node(
-        masks_topic=args.masks_topic,
-        spot_host=args.spot_host,
-        spot_port=args.spot_port,
-        cooldown_sec=args.cooldown,
-        min_confidence=args.min_confidence,
+    parser.add_argument(
+        "--telemetry-wait",
+        type=float,
+        default=DEFAULT_TELEMETRY_WAIT_SEC,
+        help="Seconds to wait for DJI topics at startup (default: %.0f)" % DEFAULT_TELEMETRY_WAIT_SEC,
     )
+    parser.add_argument(
+        "--rate",
+        type=float,
+        default=0.0,
+        metavar="HZ",
+        help="If > 0, keep sending at this rate (Hz). Default: send once and exit.",
+    )
+    args = parser.parse_args()
+    spot_addr = (args.spot_host, args.spot_port)
+
+    if args.rate > 0:
+        run_stream(spot_addr, args.rate, args.telemetry_wait)
+    else:
+        run_once(spot_addr, args.telemetry_wait)
 
 
 if __name__ == "__main__":

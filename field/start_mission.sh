@@ -15,12 +15,13 @@ set -u
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _PKG_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CATKIN_WS="$(cd "$_PKG_DIR/../.." && pwd)"
-TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
 
-if mkdir -p "/media/drone/extreme/logs/$TIMESTAMP" 2>/dev/null; then
-    LOG_DIR=/media/drone/extreme/logs/$TIMESTAMP
+LOG_NAME=$(grep -m1 '^LOG_NAME\s*=' "$SCRIPT_DIR/coglance_pipeline.py" | sed "s/.*=[[:space:]]*['\"]//; s/['\"].*//")
+
+if mkdir -p "/media/drone/extreme/$LOG_NAME" 2>/dev/null; then
+    LOG_DIR=/media/drone/extreme/$LOG_NAME
 else
-    LOG_DIR=~/logs/$TIMESTAMP
+    LOG_DIR=~/logs/$LOG_NAME
     mkdir -p "$LOG_DIR"
     echo "WARNING: /media/drone/extreme not writable - logging to $LOG_DIR"
 fi
